@@ -1,5 +1,5 @@
 # HTML5-sip-client
-[![GitHub release](https://img.shields.io/github/release/ernaniaz/jHTML5-sip-client.svg?maxAge=2592000)](https://github.com/ernaniaz/HTML5-sip-client)
+[![GitHub release](https://img.shields.io/github/release/ernaniaz/HTML5-sip-client.svg?maxAge=2592000)](https://github.com/ernaniaz/HTML5-sip-client)
 [![GitHub license](https://img.shields.io/github/license/ernaniaz/HTML5-sip-client.svg)](https://github.com/ernaniaz/HTML5-sip-client)
 
 A Javascript SIP client based on [SIP.js](http://sipjs.com/).
