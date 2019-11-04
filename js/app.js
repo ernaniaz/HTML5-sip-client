@@ -568,7 +568,7 @@ var sipPhone = ( function ( config)
       if ( a)
       {
         var s = sessions[a];
-        s.dtmf ( digit);
+        s.dtmf ( String ( digit));
       }
     },
 
