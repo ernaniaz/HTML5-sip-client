@@ -46,6 +46,38 @@ location /ws {
 
 Also, the username used to authenticate at your SIP server was prepend to 'ws' string (js/app.js at line 33). Change it to reflect your server configuration.
 
+## Test installation
+
+To test this software, you can easily configure your system, installing a clean, minimal, CentOS 7 OS. You'll need to install Asterisk and NGiNX. You can do it installing [VoIPDomain Asterisk repo](https://packagecloud.io/voipdomain/production), with:
+
+```bash
+curl -s https://packagecloud.io/install/repositories/voipdomain/production/script.rpm.sh | sudo bash
+```
+
+After configure the repository, install the basic packages with:
+
+```bash
+yum install -y asterisk asterisk-opus asterisk-sip asterisk-pjsip nginx
+```
+
+You'll need to create the Asterisk SSL configuration files, to do it, use:
+
+```bash
+mkdir /etc/asterisk/keys
+ast_tls_cert -C localhost.localdomain -O "Webphone Test" -d /etc/asterisk/keys
+```
+
+And to create the NGiNX self-signed certificate files, use:
+
+```bash
+mkdir /etc/nginx/ssl
+openssl req -new -x509 -sha256 -newkey rsa:2048 -days 365 -nodes -out /etc/nginx/ssl/webphone.localnet.pem -keyout /etc/nginx/ssl/webphone.localnet.key
+chmod 600 /etc/nginx/ssl/webphone.localnet.key
+openssl req -new -sha256 -key /etc/nginx/ssl/webphone.localnet.key -out /etc/nginx/ssl/webphone.localnet.csr
+```
+
+Copy configuration files from configs/{asterisk,nginx} to your installation, deploy this repo to /var/www/html, start the NGiNX and Asterisk and access your machine using a modern web browser.
+
 ## Demo
 
 Clone the repository and use the following command in the directory
