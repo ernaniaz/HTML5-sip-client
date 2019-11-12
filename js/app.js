@@ -44,8 +44,7 @@ var sipPhone = ( function ( config)
             wsUri: 'wss://' + window.location.hostname + ':443/ws',
             isError: false
           }
-        ],
-        traceSip: true
+        ]
       },
       uri: 'sip:ws' + config.user + '@' + config.realm,
       log:
@@ -71,7 +70,7 @@ var sipPhone = ( function ( config)
       });
     }
   }
-  $.extend ( config, { realm: 'quero.intra'});
+  $.extend ( config, { realm: 'localhost.localdomain'});
 
   setOptions ( config);
 
