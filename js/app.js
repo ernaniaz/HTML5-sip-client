@@ -654,33 +654,34 @@ var sipPhone = ( function ( config)
         }
       });
 
+      newSession.on ( 'SessionDescriptionHandler-created', function ( sdh)
+      {
+        sdh.on ( 'userMedia', function ( stream)
+        {
+          localAudio.srcObject = new MediaStream ( stream);
+          localAudio.play ();
+        });
+      });
+
       newSession.on ( 'trackAdded', function ()
       {
         var pc = newSession.sessionDescriptionHandler.peerConnection;
 
         // Gets remote tracks
-        var remoteStream = new MediaStream ();
-        pc.getReceivers ().forEach ( function ( receiver)
+        var receivers = pc.getReceivers ();
+        if ( receivers.length)
         {
-          try
+          var remoteStream = new MediaStream ();
+          receivers.forEach ( function ( receiver)
           {
-            remoteStream.addTrack ( receiver.track);
-          } catch ( e) { }
-        });
-        remoteAudio.srcObject = remoteStream;
-        remoteAudio.play ();
-
-        // Gets local tracks
-        var localStream = new MediaStream ();
-        pc.getSenders ().forEach ( function ( sender)
-        {
-          try
-          {
-            localStream.addTrack ( sender.track);
-          } catch ( e) { }
-        });
-        localAudio.srcObject = localStream;
-        localAudio.play ();
+            try
+            {
+              remoteStream.addTrack ( receiver.track);
+            } catch ( e) { }
+          });
+          remoteAudio.srcObject = remoteStream;
+          remoteAudio.play ();
+        }
       });
 
       // TODO: add muted and unmuted events
