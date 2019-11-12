@@ -584,36 +584,16 @@ var sipPhone = ( function ( config)
         if ( s.accept && ! s.startTime)
         {
           s.accept (
- /*
           {
-            media:
+            sessionDescriptionHandlerOptions:
             {
-              stream: stream,
               constraints:
               {
                 audio: true,
                 video: false
-              },
-              render:
-              {
-                remote:
-                {
-                  audio: $('#audioRemote').get ()[0]
-                }
-              },
-              RTCConstraints:
-              {
-                'optional':
-                [
-                  {
-                    'DtlsSrtpKeyAgreement': 'true'
-                  }
-                ]
               }
             }
-          }
-*/
-          );
+          });
         }
       }
     },
