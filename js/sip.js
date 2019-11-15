@@ -1,6 +1,6 @@
 /*!
  * 
- *  SIP version 0.15.6
+ *  SIP version 0.15.7
  *  Copyright (c) 2014-2019 Junction Networks, Inc <http://www.onsip.com>
  *  Homepage: https://sipjs.com
  *  License: https://sipjs.com/license/
@@ -147,22 +147,21 @@ exports.IncomingResponse = core_1.IncomingResponseMessage;
 exports.LoggerFactory = core_1.LoggerFactory;
 exports.NameAddrHeader = core_1.NameAddrHeader;
 exports.OutgoingRequest = core_1.OutgoingRequestMessage;
+exports.Parser = core_1.Parser;
 exports.Timers = core_1.Timers;
 exports.Transport = core_1.Transport;
 exports.URI = core_1.URI;
-var ClientContext_1 = __webpack_require__(79);
+var ClientContext_1 = __webpack_require__(80);
 exports.ClientContext = ClientContext_1.ClientContext;
-var Constants_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 exports.C = Constants_1.C;
-var Enums_1 = __webpack_require__(82);
+var Enums_1 = __webpack_require__(83);
 exports.DialogStatus = Enums_1.DialogStatus;
 exports.SessionStatus = Enums_1.SessionStatus;
 exports.TypeStrings = Enums_1.TypeStrings;
 exports.UAStatus = Enums_1.UAStatus;
-var Exceptions_1 = __webpack_require__(84);
+var Exceptions_1 = __webpack_require__(85);
 exports.Exceptions = Exceptions_1.Exceptions;
-var Parser_1 = __webpack_require__(85);
-exports.Parser = Parser_1.Parser;
 var PublishContext_1 = __webpack_require__(86);
 exports.PublishContext = PublishContext_1.PublishContext;
 var ReferContext_1 = __webpack_require__(87);
@@ -176,9 +175,9 @@ var Session_1 = __webpack_require__(90);
 exports.InviteClientContext = Session_1.InviteClientContext;
 exports.InviteServerContext = Session_1.InviteServerContext;
 exports.Session = Session_1.Session;
-var Subscription_1 = __webpack_require__(92);
+var Subscription_1 = __webpack_require__(93);
 exports.Subscription = Subscription_1.Subscription;
-var transactions_1 = __webpack_require__(27);
+var transactions_1 = __webpack_require__(28);
 var Transactions = {
     InviteClientTransaction: transactions_1.InviteClientTransaction,
     InviteServerTransaction: transactions_1.InviteServerTransaction,
@@ -186,12 +185,12 @@ var Transactions = {
     NonInviteServerTransaction: transactions_1.NonInviteServerTransaction
 };
 exports.Transactions = Transactions;
-var UA_1 = __webpack_require__(93);
+var UA_1 = __webpack_require__(94);
 exports.makeUserAgentCoreConfigurationFromUA = UA_1.makeUserAgentCoreConfigurationFromUA;
 exports.UA = UA_1.UA;
-var Utils_1 = __webpack_require__(83);
+var Utils_1 = __webpack_require__(84);
 exports.Utils = Utils_1.Utils;
-var Web = tslib_1.__importStar(__webpack_require__(104));
+var Web = tslib_1.__importStar(__webpack_require__(110));
 exports.Web = Web;
 var version = Constants_1.C.version;
 exports.version = version;
@@ -439,17 +438,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 // Directories
 tslib_1.__exportStar(__webpack_require__(3), exports);
-tslib_1.__exportStar(__webpack_require__(31), exports);
-tslib_1.__exportStar(__webpack_require__(60), exports);
+tslib_1.__exportStar(__webpack_require__(32), exports);
+tslib_1.__exportStar(__webpack_require__(61), exports);
 tslib_1.__exportStar(__webpack_require__(5), exports);
-tslib_1.__exportStar(__webpack_require__(24), exports);
-tslib_1.__exportStar(__webpack_require__(56), exports);
-tslib_1.__exportStar(__webpack_require__(27), exports);
-tslib_1.__exportStar(__webpack_require__(64), exports);
-tslib_1.__exportStar(__webpack_require__(66), exports);
+tslib_1.__exportStar(__webpack_require__(25), exports);
+tslib_1.__exportStar(__webpack_require__(57), exports);
+tslib_1.__exportStar(__webpack_require__(28), exports);
+tslib_1.__exportStar(__webpack_require__(65), exports);
+tslib_1.__exportStar(__webpack_require__(67), exports);
 // Files
-tslib_1.__exportStar(__webpack_require__(26), exports);
-tslib_1.__exportStar(__webpack_require__(78), exports);
+tslib_1.__exportStar(__webpack_require__(27), exports);
+tslib_1.__exportStar(__webpack_require__(79), exports);
 
 
 /***/ }),
@@ -461,8 +460,8 @@ tslib_1.__exportStar(__webpack_require__(78), exports);
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 tslib_1.__exportStar(__webpack_require__(4), exports);
-tslib_1.__exportStar(__webpack_require__(23), exports);
-tslib_1.__exportStar(__webpack_require__(55), exports);
+tslib_1.__exportStar(__webpack_require__(24), exports);
+tslib_1.__exportStar(__webpack_require__(56), exports);
 
 
 /***/ }),
@@ -1055,6 +1054,7 @@ tslib_1.__exportStar(__webpack_require__(13), exports);
 tslib_1.__exportStar(__webpack_require__(18), exports);
 tslib_1.__exportStar(__webpack_require__(22), exports);
 tslib_1.__exportStar(__webpack_require__(14), exports);
+tslib_1.__exportStar(__webpack_require__(23), exports);
 tslib_1.__exportStar(__webpack_require__(15), exports);
 
 
@@ -5037,23 +5037,266 @@ exports.constructOutgoingResponse = constructOutgoingResponse;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+var grammar_1 = __webpack_require__(11);
+var incoming_request_message_1 = __webpack_require__(9);
+var incoming_response_message_1 = __webpack_require__(17);
+/**
+ * Extract and parse every header of a SIP message.
+ * @internal
+ */
+var Parser;
+(function (Parser) {
+    function getHeader(data, headerStart) {
+        // 'start' position of the header.
+        var start = headerStart;
+        // 'end' position of the header.
+        var end = 0;
+        // 'partial end' position of the header.
+        var partialEnd = 0;
+        // End of message.
+        if (data.substring(start, start + 2).match(/(^\r\n)/)) {
+            return -2;
+        }
+        while (end === 0) {
+            // Partial End of Header.
+            partialEnd = data.indexOf("\r\n", start);
+            // 'indexOf' returns -1 if the value to be found never occurs.
+            if (partialEnd === -1) {
+                return partialEnd;
+            }
+            if (!data.substring(partialEnd + 2, partialEnd + 4).match(/(^\r\n)/) &&
+                data.charAt(partialEnd + 2).match(/(^\s+)/)) {
+                // Not the end of the message. Continue from the next position.
+                start = partialEnd + 2;
+            }
+            else {
+                end = partialEnd;
+            }
+        }
+        return end;
+    }
+    Parser.getHeader = getHeader;
+    function parseHeader(message, data, headerStart, headerEnd) {
+        var hcolonIndex = data.indexOf(":", headerStart);
+        var headerName = data.substring(headerStart, hcolonIndex).trim();
+        var headerValue = data.substring(hcolonIndex + 1, headerEnd).trim();
+        var parsed;
+        // If header-field is well-known, parse it.
+        switch (headerName.toLowerCase()) {
+            case "via":
+            case "v":
+                message.addHeader("via", headerValue);
+                if (message.getHeaders("via").length === 1) {
+                    parsed = message.parseHeader("Via");
+                    if (parsed) {
+                        message.via = parsed;
+                        message.viaBranch = parsed.branch;
+                    }
+                }
+                else {
+                    parsed = 0;
+                }
+                break;
+            case "from":
+            case "f":
+                message.setHeader("from", headerValue);
+                parsed = message.parseHeader("from");
+                if (parsed) {
+                    message.from = parsed;
+                    message.fromTag = parsed.getParam("tag");
+                }
+                break;
+            case "to":
+            case "t":
+                message.setHeader("to", headerValue);
+                parsed = message.parseHeader("to");
+                if (parsed) {
+                    message.to = parsed;
+                    message.toTag = parsed.getParam("tag");
+                }
+                break;
+            case "record-route":
+                parsed = grammar_1.Grammar.parse(headerValue, "Record_Route");
+                if (parsed === -1) {
+                    parsed = undefined;
+                    break;
+                }
+                if (!(parsed instanceof Array)) {
+                    parsed = undefined;
+                    break;
+                }
+                parsed.forEach(function (header) {
+                    message.addHeader("record-route", headerValue.substring(header.position, header.offset));
+                    message.headers["Record-Route"][message.getHeaders("record-route").length - 1].parsed = header.parsed;
+                });
+                break;
+            case "call-id":
+            case "i":
+                message.setHeader("call-id", headerValue);
+                parsed = message.parseHeader("call-id");
+                if (parsed) {
+                    message.callId = headerValue;
+                }
+                break;
+            case "contact":
+            case "m":
+                parsed = grammar_1.Grammar.parse(headerValue, "Contact");
+                if (parsed === -1) {
+                    parsed = undefined;
+                    break;
+                }
+                if (!(parsed instanceof Array)) {
+                    parsed = undefined;
+                    break;
+                }
+                parsed.forEach(function (header) {
+                    message.addHeader("contact", headerValue.substring(header.position, header.offset));
+                    message.headers.Contact[message.getHeaders("contact").length - 1].parsed = header.parsed;
+                });
+                break;
+            case "content-length":
+            case "l":
+                message.setHeader("content-length", headerValue);
+                parsed = message.parseHeader("content-length");
+                break;
+            case "content-type":
+            case "c":
+                message.setHeader("content-type", headerValue);
+                parsed = message.parseHeader("content-type");
+                break;
+            case "cseq":
+                message.setHeader("cseq", headerValue);
+                parsed = message.parseHeader("cseq");
+                if (parsed) {
+                    message.cseq = parsed.value;
+                }
+                if (message instanceof incoming_response_message_1.IncomingResponseMessage) {
+                    message.method = parsed.method;
+                }
+                break;
+            case "max-forwards":
+                message.setHeader("max-forwards", headerValue);
+                parsed = message.parseHeader("max-forwards");
+                break;
+            case "www-authenticate":
+                message.setHeader("www-authenticate", headerValue);
+                parsed = message.parseHeader("www-authenticate");
+                break;
+            case "proxy-authenticate":
+                message.setHeader("proxy-authenticate", headerValue);
+                parsed = message.parseHeader("proxy-authenticate");
+                break;
+            case "refer-to":
+            case "r":
+                message.setHeader("refer-to", headerValue);
+                parsed = message.parseHeader("refer-to");
+                if (parsed) {
+                    message.referTo = parsed;
+                }
+                break;
+            default:
+                // Do not parse this header.
+                message.addHeader(headerName.toLowerCase(), headerValue);
+                parsed = 0;
+        }
+        if (parsed === undefined) {
+            return {
+                error: "error parsing header '" + headerName + "'"
+            };
+        }
+        else {
+            return true;
+        }
+    }
+    Parser.parseHeader = parseHeader;
+    function parseMessage(data, logger) {
+        var headerStart = 0;
+        var headerEnd = data.indexOf("\r\n");
+        if (headerEnd === -1) {
+            logger.warn("no CRLF found, not a SIP message, discarded");
+            return;
+        }
+        // Parse first line. Check if it is a Request or a Reply.
+        var firstLine = data.substring(0, headerEnd);
+        var parsed = grammar_1.Grammar.parse(firstLine, "Request_Response");
+        var message;
+        if (parsed === -1) {
+            logger.warn('error parsing first line of SIP message: "' + firstLine + '"');
+            return;
+        }
+        else if (!parsed.status_code) {
+            message = new incoming_request_message_1.IncomingRequestMessage();
+            message.method = parsed.method;
+            message.ruri = parsed.uri;
+        }
+        else {
+            message = new incoming_response_message_1.IncomingResponseMessage();
+            message.statusCode = parsed.status_code;
+            message.reasonPhrase = parsed.reason_phrase;
+        }
+        message.data = data;
+        headerStart = headerEnd + 2;
+        // Loop over every line in data. Detect the end of each header and parse
+        // it or simply add to the headers collection.
+        var bodyStart;
+        while (true) {
+            headerEnd = getHeader(data, headerStart);
+            // The SIP message has normally finished.
+            if (headerEnd === -2) {
+                bodyStart = headerStart + 2;
+                break;
+            }
+            else if (headerEnd === -1) {
+                // data.indexOf returned -1 due to a malformed message.
+                logger.error("malformed message");
+                return;
+            }
+            var parsedHeader = parseHeader(message, data, headerStart, headerEnd);
+            if (parsedHeader !== true) {
+                logger.error(parsed.error);
+                return;
+            }
+            headerStart = headerEnd + 2;
+        }
+        // RFC3261 18.3.
+        // If there are additional bytes in the transport packet
+        // beyond the end of the body, they MUST be discarded.
+        if (message.hasHeader("content-length")) {
+            message.body = data.substr(bodyStart, Number(message.getHeader("content-length")));
+        }
+        else {
+            message.body = data.substring(bodyStart);
+        }
+        return message;
+    }
+    Parser.parseMessage = parseMessage;
+})(Parser = exports.Parser || (exports.Parser = {}));
+
+
+/***/ }),
+/* 24 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var session_1 = __webpack_require__(24);
-var timers_1 = __webpack_require__(26);
-var transactions_1 = __webpack_require__(27);
-var bye_user_agent_client_1 = __webpack_require__(41);
-var bye_user_agent_server_1 = __webpack_require__(43);
-var info_user_agent_client_1 = __webpack_require__(45);
-var info_user_agent_server_1 = __webpack_require__(46);
-var notify_user_agent_client_1 = __webpack_require__(47);
-var notify_user_agent_server_1 = __webpack_require__(48);
-var prack_user_agent_client_1 = __webpack_require__(49);
-var prack_user_agent_server_1 = __webpack_require__(50);
-var re_invite_user_agent_client_1 = __webpack_require__(51);
-var re_invite_user_agent_server_1 = __webpack_require__(52);
-var refer_user_agent_client_1 = __webpack_require__(53);
-var refer_user_agent_server_1 = __webpack_require__(54);
+var session_1 = __webpack_require__(25);
+var timers_1 = __webpack_require__(27);
+var transactions_1 = __webpack_require__(28);
+var bye_user_agent_client_1 = __webpack_require__(42);
+var bye_user_agent_server_1 = __webpack_require__(44);
+var info_user_agent_client_1 = __webpack_require__(46);
+var info_user_agent_server_1 = __webpack_require__(47);
+var notify_user_agent_client_1 = __webpack_require__(48);
+var notify_user_agent_server_1 = __webpack_require__(49);
+var prack_user_agent_client_1 = __webpack_require__(50);
+var prack_user_agent_server_1 = __webpack_require__(51);
+var re_invite_user_agent_client_1 = __webpack_require__(52);
+var re_invite_user_agent_server_1 = __webpack_require__(53);
+var refer_user_agent_client_1 = __webpack_require__(54);
+var refer_user_agent_server_1 = __webpack_require__(55);
 var dialog_1 = __webpack_require__(4);
 /**
  * Session Dialog.
@@ -5861,18 +6104,18 @@ exports.SessionDialog = SessionDialog;
 
 
 /***/ }),
-/* 24 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(25), exports);
+tslib_1.__exportStar(__webpack_require__(26), exports);
 
 
 /***/ }),
-/* 25 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -5921,7 +6164,7 @@ var SignalingState;
 
 
 /***/ }),
-/* 26 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -5953,25 +6196,6 @@ exports.Timers = {
 
 
 /***/ }),
-/* 27 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(28), exports);
-tslib_1.__exportStar(__webpack_require__(35), exports);
-tslib_1.__exportStar(__webpack_require__(37), exports);
-tslib_1.__exportStar(__webpack_require__(39), exports);
-tslib_1.__exportStar(__webpack_require__(40), exports);
-tslib_1.__exportStar(__webpack_require__(35), exports);
-tslib_1.__exportStar(__webpack_require__(38), exports);
-tslib_1.__exportStar(__webpack_require__(36), exports);
-tslib_1.__exportStar(__webpack_require__(29), exports);
-
-
-/***/ }),
 /* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -5979,7 +6203,26 @@ tslib_1.__exportStar(__webpack_require__(29), exports);
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transaction_1 = __webpack_require__(29);
+tslib_1.__exportStar(__webpack_require__(29), exports);
+tslib_1.__exportStar(__webpack_require__(36), exports);
+tslib_1.__exportStar(__webpack_require__(38), exports);
+tslib_1.__exportStar(__webpack_require__(40), exports);
+tslib_1.__exportStar(__webpack_require__(41), exports);
+tslib_1.__exportStar(__webpack_require__(36), exports);
+tslib_1.__exportStar(__webpack_require__(39), exports);
+tslib_1.__exportStar(__webpack_require__(37), exports);
+tslib_1.__exportStar(__webpack_require__(30), exports);
+
+
+/***/ }),
+/* 29 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var transaction_1 = __webpack_require__(30);
 /**
  * Client Transaction.
  * @remarks
@@ -6052,15 +6295,15 @@ exports.ClientTransaction = ClientTransaction;
 
 
 /***/ }),
-/* 29 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var exceptions_1 = __webpack_require__(31);
+var events_1 = __webpack_require__(31);
+var exceptions_1 = __webpack_require__(32);
 /**
  * Transaction.
  * @remarks
@@ -6183,7 +6426,7 @@ exports.Transaction = Transaction;
 
 
 /***/ }),
-/* 30 */
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -6638,20 +6881,20 @@ function unwrapListeners(arr) {
 
 
 /***/ }),
-/* 31 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(32), exports);
 tslib_1.__exportStar(__webpack_require__(33), exports);
 tslib_1.__exportStar(__webpack_require__(34), exports);
+tslib_1.__exportStar(__webpack_require__(35), exports);
 
 
 /***/ }),
-/* 32 */
+/* 33 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -6677,14 +6920,14 @@ exports.Exception = Exception;
 
 
 /***/ }),
-/* 33 */
+/* 34 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var exception_1 = __webpack_require__(32);
+var exception_1 = __webpack_require__(33);
 /**
  * Indicates that the operation could not be completed given the current transaction state.
  * @public
@@ -6700,14 +6943,14 @@ exports.TransactionStateError = TransactionStateError;
 
 
 /***/ }),
-/* 34 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var exception_1 = __webpack_require__(32);
+var exception_1 = __webpack_require__(33);
 /**
  * Transport error.
  * @public
@@ -6723,16 +6966,16 @@ exports.TransportError = TransportError;
 
 
 /***/ }),
-/* 35 */
+/* 36 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var timers_1 = __webpack_require__(26);
-var client_transaction_1 = __webpack_require__(28);
-var transaction_state_1 = __webpack_require__(36);
+var timers_1 = __webpack_require__(27);
+var client_transaction_1 = __webpack_require__(29);
+var transaction_state_1 = __webpack_require__(37);
 /**
  * INVITE Client Transaction.
  * @remarks
@@ -7216,7 +7459,7 @@ exports.InviteClientTransaction = InviteClientTransaction;
 
 
 /***/ }),
-/* 36 */
+/* 37 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7239,7 +7482,7 @@ var TransactionState;
 
 
 /***/ }),
-/* 37 */
+/* 38 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -7247,9 +7490,9 @@ var TransactionState;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var timers_1 = __webpack_require__(26);
-var server_transaction_1 = __webpack_require__(38);
-var transaction_state_1 = __webpack_require__(36);
+var timers_1 = __webpack_require__(27);
+var server_transaction_1 = __webpack_require__(39);
+var transaction_state_1 = __webpack_require__(37);
 /**
  * INVITE Server Transaction.
  * @remarks
@@ -7637,14 +7880,14 @@ exports.InviteServerTransaction = InviteServerTransaction;
 
 
 /***/ }),
-/* 38 */
+/* 39 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transaction_1 = __webpack_require__(29);
+var transaction_1 = __webpack_require__(30);
 /**
  * Server Transaction.
  * @remarks
@@ -7678,16 +7921,16 @@ exports.ServerTransaction = ServerTransaction;
 
 
 /***/ }),
-/* 39 */
+/* 40 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var timers_1 = __webpack_require__(26);
-var client_transaction_1 = __webpack_require__(28);
-var transaction_state_1 = __webpack_require__(36);
+var timers_1 = __webpack_require__(27);
+var client_transaction_1 = __webpack_require__(29);
+var transaction_state_1 = __webpack_require__(37);
 /**
  * Non-INVITE Client Transaction.
  * @remarks
@@ -7931,16 +8174,16 @@ exports.NonInviteClientTransaction = NonInviteClientTransaction;
 
 
 /***/ }),
-/* 40 */
+/* 41 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var timers_1 = __webpack_require__(26);
-var server_transaction_1 = __webpack_require__(38);
-var transaction_state_1 = __webpack_require__(36);
+var timers_1 = __webpack_require__(27);
+var server_transaction_1 = __webpack_require__(39);
+var transaction_state_1 = __webpack_require__(37);
 /**
  * Non-INVITE Server Transaction.
  * @remarks
@@ -8169,7 +8412,7 @@ exports.NonInviteServerTransaction = NonInviteServerTransaction;
 
 
 /***/ }),
-/* 41 */
+/* 42 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8177,8 +8420,8 @@ exports.NonInviteServerTransaction = NonInviteServerTransaction;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * BYE UAC.
  * @public
@@ -8198,14 +8441,14 @@ exports.ByeUserAgentClient = ByeUserAgentClient;
 
 
 /***/ }),
-/* 42 */
+/* 43 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
+var transactions_1 = __webpack_require__(28);
 /**
  * User Agent Client (UAC).
  * @remarks
@@ -8519,15 +8762,15 @@ exports.UserAgentClient = UserAgentClient;
 
 
 /***/ }),
-/* 43 */
+/* 44 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * BYE UAS.
  * @public
@@ -8543,16 +8786,16 @@ exports.ByeUserAgentServer = ByeUserAgentServer;
 
 
 /***/ }),
-/* 44 */
+/* 45 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var exceptions_1 = __webpack_require__(31);
+var exceptions_1 = __webpack_require__(32);
 var messages_1 = __webpack_require__(5);
 var utils_1 = __webpack_require__(16);
-var transactions_1 = __webpack_require__(27);
+var transactions_1 = __webpack_require__(28);
 /**
  * User Agent Server (UAS).
  * @remarks
@@ -8811,7 +9054,7 @@ exports.UserAgentServer = UserAgentServer;
 
 
 /***/ }),
-/* 45 */
+/* 46 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8819,8 +9062,8 @@ exports.UserAgentServer = UserAgentServer;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * INFO UAC.
  * @public
@@ -8839,15 +9082,15 @@ exports.InfoUserAgentClient = InfoUserAgentClient;
 
 
 /***/ }),
-/* 46 */
+/* 47 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * INFO UAS.
  * @public
@@ -8863,7 +9106,7 @@ exports.InfoUserAgentServer = InfoUserAgentServer;
 
 
 /***/ }),
-/* 47 */
+/* 48 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8871,8 +9114,8 @@ exports.InfoUserAgentServer = InfoUserAgentServer;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * NOTIFY UAS.
  * @public
@@ -8891,15 +9134,15 @@ exports.NotifyUserAgentClient = NotifyUserAgentClient;
 
 
 /***/ }),
-/* 48 */
+/* 49 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * NOTIFY UAS.
  * @public
@@ -8928,7 +9171,7 @@ function instanceOfDialog(object) {
 
 
 /***/ }),
-/* 49 */
+/* 50 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -8936,8 +9179,8 @@ function instanceOfDialog(object) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * PRACK UAC.
  * @public
@@ -8957,15 +9200,15 @@ exports.PrackUserAgentClient = PrackUserAgentClient;
 
 
 /***/ }),
-/* 50 */
+/* 51 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * PRACK UAS.
  * @public
@@ -8997,7 +9240,7 @@ exports.PrackUserAgentServer = PrackUserAgentServer;
 
 
 /***/ }),
-/* 51 */
+/* 52 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9005,8 +9248,8 @@ exports.PrackUserAgentServer = PrackUserAgentServer;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * Re-INVITE UAC.
  * @remarks
@@ -9117,15 +9360,15 @@ exports.ReInviteUserAgentClient = ReInviteUserAgentClient;
 
 
 /***/ }),
-/* 52 */
+/* 53 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * Re-INVITE UAS.
  * @remarks
@@ -9220,7 +9463,7 @@ exports.ReInviteUserAgentServer = ReInviteUserAgentServer;
 
 
 /***/ }),
-/* 53 */
+/* 54 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9228,8 +9471,8 @@ exports.ReInviteUserAgentServer = ReInviteUserAgentServer;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * REFER UAC.
  * @public
@@ -9248,15 +9491,15 @@ exports.ReferUserAgentClient = ReferUserAgentClient;
 
 
 /***/ }),
-/* 54 */
+/* 55 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * REFER UAS.
  * @public
@@ -9285,7 +9528,7 @@ function instanceOfSessionDialog(object) {
 
 
 /***/ }),
-/* 55 */
+/* 56 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9293,11 +9536,11 @@ function instanceOfSessionDialog(object) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var subscription_1 = __webpack_require__(56);
-var timers_1 = __webpack_require__(26);
-var allowed_methods_1 = __webpack_require__(58);
-var notify_user_agent_server_1 = __webpack_require__(48);
-var re_subscribe_user_agent_client_1 = __webpack_require__(59);
+var subscription_1 = __webpack_require__(57);
+var timers_1 = __webpack_require__(27);
+var allowed_methods_1 = __webpack_require__(59);
+var notify_user_agent_server_1 = __webpack_require__(49);
+var re_subscribe_user_agent_client_1 = __webpack_require__(60);
 var dialog_1 = __webpack_require__(4);
 /**
  * Subscription Dialog.
@@ -9786,18 +10029,18 @@ exports.SubscriptionDialog = SubscriptionDialog;
 
 
 /***/ }),
-/* 56 */
+/* 57 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(57), exports);
+tslib_1.__exportStar(__webpack_require__(58), exports);
 
 
 /***/ }),
-/* 57 */
+/* 58 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9820,7 +10063,7 @@ var SubscriptionState;
 
 
 /***/ }),
-/* 58 */
+/* 59 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9847,7 +10090,7 @@ exports.AllowedMethods = [
 
 
 /***/ }),
-/* 59 */
+/* 60 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9855,8 +10098,8 @@ exports.AllowedMethods = [
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * Re-SUBSCRIBE UAC.
  * @public
@@ -9927,20 +10170,20 @@ exports.ReSubscribeUserAgentClient = ReSubscribeUserAgentClient;
 
 
 /***/ }),
-/* 60 */
+/* 61 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(61), exports);
 tslib_1.__exportStar(__webpack_require__(62), exports);
 tslib_1.__exportStar(__webpack_require__(63), exports);
+tslib_1.__exportStar(__webpack_require__(64), exports);
 
 
 /***/ }),
-/* 61 */
+/* 62 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -9960,14 +10203,14 @@ var Levels;
 
 
 /***/ }),
-/* 62 */
+/* 63 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var levels_1 = __webpack_require__(61);
-var logger_1 = __webpack_require__(63);
+var levels_1 = __webpack_require__(62);
+var logger_1 = __webpack_require__(64);
 /**
  * Logger.
  * @public
@@ -10074,13 +10317,13 @@ exports.LoggerFactory = LoggerFactory;
 
 
 /***/ }),
-/* 63 */
+/* 64 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var levels_1 = __webpack_require__(61);
+var levels_1 = __webpack_require__(62);
 /**
  * Logger.
  * @public
@@ -10104,17 +10347,6 @@ exports.Logger = Logger;
 
 
 /***/ }),
-/* 64 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(65), exports);
-
-
-/***/ }),
 /* 65 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -10122,10 +10354,21 @@ tslib_1.__exportStar(__webpack_require__(65), exports);
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
+tslib_1.__exportStar(__webpack_require__(66), exports);
+
+
+/***/ }),
+/* 66 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
 var messages_1 = __webpack_require__(5);
-var transactions_1 = __webpack_require__(27);
-var user_agents_1 = __webpack_require__(66);
-var allowed_methods_1 = __webpack_require__(58);
+var transactions_1 = __webpack_require__(28);
+var user_agents_1 = __webpack_require__(67);
+var allowed_methods_1 = __webpack_require__(59);
 /**
  * This is ported from UA.C.ACCEPTED_BODY_TYPES.
  * FIXME: TODO: Should be configurable/variable.
@@ -10936,42 +11179,6 @@ exports.UserAgentCore = UserAgentCore;
 
 
 /***/ }),
-/* 66 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-tslib_1.__exportStar(__webpack_require__(41), exports);
-tslib_1.__exportStar(__webpack_require__(43), exports);
-tslib_1.__exportStar(__webpack_require__(67), exports);
-tslib_1.__exportStar(__webpack_require__(45), exports);
-tslib_1.__exportStar(__webpack_require__(46), exports);
-tslib_1.__exportStar(__webpack_require__(68), exports);
-tslib_1.__exportStar(__webpack_require__(69), exports);
-tslib_1.__exportStar(__webpack_require__(70), exports);
-tslib_1.__exportStar(__webpack_require__(71), exports);
-tslib_1.__exportStar(__webpack_require__(47), exports);
-tslib_1.__exportStar(__webpack_require__(48), exports);
-tslib_1.__exportStar(__webpack_require__(72), exports);
-tslib_1.__exportStar(__webpack_require__(49), exports);
-tslib_1.__exportStar(__webpack_require__(50), exports);
-tslib_1.__exportStar(__webpack_require__(51), exports);
-tslib_1.__exportStar(__webpack_require__(52), exports);
-tslib_1.__exportStar(__webpack_require__(59), exports);
-tslib_1.__exportStar(__webpack_require__(73), exports);
-tslib_1.__exportStar(__webpack_require__(53), exports);
-tslib_1.__exportStar(__webpack_require__(54), exports);
-tslib_1.__exportStar(__webpack_require__(74), exports);
-tslib_1.__exportStar(__webpack_require__(75), exports);
-tslib_1.__exportStar(__webpack_require__(76), exports);
-tslib_1.__exportStar(__webpack_require__(77), exports);
-tslib_1.__exportStar(__webpack_require__(42), exports);
-tslib_1.__exportStar(__webpack_require__(44), exports);
-
-
-/***/ }),
 /* 67 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -10979,8 +11186,44 @@ tslib_1.__exportStar(__webpack_require__(44), exports);
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+tslib_1.__exportStar(__webpack_require__(42), exports);
+tslib_1.__exportStar(__webpack_require__(44), exports);
+tslib_1.__exportStar(__webpack_require__(68), exports);
+tslib_1.__exportStar(__webpack_require__(46), exports);
+tslib_1.__exportStar(__webpack_require__(47), exports);
+tslib_1.__exportStar(__webpack_require__(69), exports);
+tslib_1.__exportStar(__webpack_require__(70), exports);
+tslib_1.__exportStar(__webpack_require__(71), exports);
+tslib_1.__exportStar(__webpack_require__(72), exports);
+tslib_1.__exportStar(__webpack_require__(48), exports);
+tslib_1.__exportStar(__webpack_require__(49), exports);
+tslib_1.__exportStar(__webpack_require__(73), exports);
+tslib_1.__exportStar(__webpack_require__(50), exports);
+tslib_1.__exportStar(__webpack_require__(51), exports);
+tslib_1.__exportStar(__webpack_require__(52), exports);
+tslib_1.__exportStar(__webpack_require__(53), exports);
+tslib_1.__exportStar(__webpack_require__(60), exports);
+tslib_1.__exportStar(__webpack_require__(74), exports);
+tslib_1.__exportStar(__webpack_require__(54), exports);
+tslib_1.__exportStar(__webpack_require__(55), exports);
+tslib_1.__exportStar(__webpack_require__(75), exports);
+tslib_1.__exportStar(__webpack_require__(76), exports);
+tslib_1.__exportStar(__webpack_require__(77), exports);
+tslib_1.__exportStar(__webpack_require__(78), exports);
+tslib_1.__exportStar(__webpack_require__(43), exports);
+tslib_1.__exportStar(__webpack_require__(45), exports);
+
+
+/***/ }),
+/* 68 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * CANCEL UAC.
  * @public
@@ -10996,7 +11239,7 @@ exports.CancelUserAgentClient = CancelUserAgentClient;
 
 
 /***/ }),
-/* 68 */
+/* 69 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -11004,9 +11247,9 @@ exports.CancelUserAgentClient = CancelUserAgentClient;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var dialogs_1 = __webpack_require__(3);
-var session_1 = __webpack_require__(24);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var session_1 = __webpack_require__(25);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * INVITE UAC.
  * @remarks
@@ -11326,7 +11569,7 @@ exports.InviteUserAgentClient = InviteUserAgentClient;
 
 
 /***/ }),
-/* 69 */
+/* 70 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -11334,11 +11577,11 @@ exports.InviteUserAgentClient = InviteUserAgentClient;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var dialogs_1 = __webpack_require__(3);
-var exceptions_1 = __webpack_require__(31);
-var session_1 = __webpack_require__(24);
-var transactions_1 = __webpack_require__(27);
-var allowed_methods_1 = __webpack_require__(58);
-var user_agent_server_1 = __webpack_require__(44);
+var exceptions_1 = __webpack_require__(32);
+var session_1 = __webpack_require__(25);
+var transactions_1 = __webpack_require__(28);
+var allowed_methods_1 = __webpack_require__(59);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * INVITE UAS.
  * @remarks
@@ -11580,15 +11823,15 @@ exports.InviteUserAgentServer = InviteUserAgentServer;
 
 
 /***/ }),
-/* 70 */
+/* 71 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * MESSAGE UAS.
  * @public
@@ -11604,15 +11847,15 @@ exports.MessageUserAgentClient = MessageUserAgentClient;
 
 
 /***/ }),
-/* 71 */
+/* 72 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * MESSAGE UAS.
  * @public
@@ -11630,15 +11873,15 @@ exports.MessageUserAgentServer = MessageUserAgentServer;
 
 
 /***/ }),
-/* 72 */
+/* 73 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * PUBLISH UAC.
  * @public
@@ -11654,15 +11897,15 @@ exports.PublishUserAgentClient = PublishUserAgentClient;
 
 
 /***/ }),
-/* 73 */
+/* 74 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * Re-SUBSCRIBE UAS.
  * @public
@@ -11678,15 +11921,15 @@ exports.ReSubscribeUserAgentServer = ReSubscribeUserAgentServer;
 
 
 /***/ }),
-/* 74 */
+/* 75 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * REGISTER UAC.
  * @public
@@ -11702,15 +11945,15 @@ exports.RegisterUserAgentClient = RegisterUserAgentClient;
 
 
 /***/ }),
-/* 75 */
+/* 76 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * REGISTER UAS.
  * @public
@@ -11728,18 +11971,18 @@ exports.RegisterUserAgentServer = RegisterUserAgentServer;
 
 
 /***/ }),
-/* 76 */
+/* 77 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var subscription_dialog_1 = __webpack_require__(55);
-var subscription_1 = __webpack_require__(56);
-var timers_1 = __webpack_require__(26);
-var transactions_1 = __webpack_require__(27);
-var user_agent_client_1 = __webpack_require__(42);
+var subscription_dialog_1 = __webpack_require__(56);
+var subscription_1 = __webpack_require__(57);
+var timers_1 = __webpack_require__(27);
+var transactions_1 = __webpack_require__(28);
+var user_agent_client_1 = __webpack_require__(43);
 /**
  * SUBSCRIBE UAC.
  * @remarks
@@ -12032,15 +12275,15 @@ exports.SubscribeUserAgentClient = SubscribeUserAgentClient;
 
 
 /***/ }),
-/* 77 */
+/* 78 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var transactions_1 = __webpack_require__(27);
-var user_agent_server_1 = __webpack_require__(44);
+var transactions_1 = __webpack_require__(28);
+var user_agent_server_1 = __webpack_require__(45);
 /**
  * SUBSCRIBE UAS.
  * @public
@@ -12058,14 +12301,14 @@ exports.SubscribeUserAgentServer = SubscribeUserAgentServer;
 
 
 /***/ }),
-/* 78 */
+/* 79 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
+var events_1 = __webpack_require__(31);
 /**
  * Transport.
  * @remarks
@@ -12171,18 +12414,18 @@ exports.Transport = Transport;
 
 
 /***/ }),
-/* 79 */
+/* 80 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Utils_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(83);
+var Utils_1 = __webpack_require__(84);
 var ClientContext = /** @class */ (function (_super) {
     tslib_1.__extends(ClientContext, _super);
     function ClientContext(ua, method, target, options) {
@@ -12301,13 +12544,13 @@ exports.ClientContext = ClientContext;
 
 
 /***/ }),
-/* 80 */
+/* 81 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var version_1 = __webpack_require__(81);
+var version_1 = __webpack_require__(82);
 var C;
 (function (C) {
     C.version = version_1.LIBRARY_VERSION;
@@ -12500,17 +12743,17 @@ var C;
 
 
 /***/ }),
-/* 81 */
+/* 82 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LIBRARY_VERSION = "0.15.6";
+exports.LIBRARY_VERSION = "0.15.7";
 
 
 /***/ }),
-/* 82 */
+/* 83 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -12588,13 +12831,13 @@ var UAStatus;
 
 
 /***/ }),
-/* 83 */
+/* 84 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var Constants_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var grammar_1 = __webpack_require__(11);
 var uri_1 = __webpack_require__(15);
 var Utils;
@@ -12833,7 +13076,7 @@ var Utils;
 
 
 /***/ }),
-/* 84 */
+/* 85 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -12841,7 +13084,7 @@ var Utils;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
+var Enums_1 = __webpack_require__(83);
 // tslint:disable:max-classes-per-file
 var Exceptions;
 (function (Exceptions) {
@@ -12977,254 +13220,6 @@ var LegacyException = /** @class */ (function (_super) {
 
 
 /***/ }),
-/* 85 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var core_1 = __webpack_require__(2);
-/**
- * Extract and parse every header of a SIP message.
- * @namespace
- */
-var Parser;
-(function (Parser) {
-    function getHeader(data, headerStart) {
-        // 'start' position of the header.
-        var start = headerStart;
-        // 'end' position of the header.
-        var end = 0;
-        // 'partial end' position of the header.
-        var partialEnd = 0;
-        // End of message.
-        if (data.substring(start, start + 2).match(/(^\r\n)/)) {
-            return -2;
-        }
-        while (end === 0) {
-            // Partial End of Header.
-            partialEnd = data.indexOf("\r\n", start);
-            // 'indexOf' returns -1 if the value to be found never occurs.
-            if (partialEnd === -1) {
-                return partialEnd;
-            }
-            if (!data.substring(partialEnd + 2, partialEnd + 4).match(/(^\r\n)/) &&
-                data.charAt(partialEnd + 2).match(/(^\s+)/)) {
-                // Not the end of the message. Continue from the next position.
-                start = partialEnd + 2;
-            }
-            else {
-                end = partialEnd;
-            }
-        }
-        return end;
-    }
-    Parser.getHeader = getHeader;
-    function parseHeader(message, data, headerStart, headerEnd) {
-        var hcolonIndex = data.indexOf(":", headerStart);
-        var headerName = data.substring(headerStart, hcolonIndex).trim();
-        var headerValue = data.substring(hcolonIndex + 1, headerEnd).trim();
-        var parsed;
-        // If header-field is well-known, parse it.
-        switch (headerName.toLowerCase()) {
-            case "via":
-            case "v":
-                message.addHeader("via", headerValue);
-                if (message.getHeaders("via").length === 1) {
-                    parsed = message.parseHeader("Via");
-                    if (parsed) {
-                        message.via = parsed;
-                        message.viaBranch = parsed.branch;
-                    }
-                }
-                else {
-                    parsed = 0;
-                }
-                break;
-            case "from":
-            case "f":
-                message.setHeader("from", headerValue);
-                parsed = message.parseHeader("from");
-                if (parsed) {
-                    message.from = parsed;
-                    message.fromTag = parsed.getParam("tag");
-                }
-                break;
-            case "to":
-            case "t":
-                message.setHeader("to", headerValue);
-                parsed = message.parseHeader("to");
-                if (parsed) {
-                    message.to = parsed;
-                    message.toTag = parsed.getParam("tag");
-                }
-                break;
-            case "record-route":
-                parsed = core_1.Grammar.parse(headerValue, "Record_Route");
-                if (parsed === -1) {
-                    parsed = undefined;
-                    break;
-                }
-                for (var header in parsed) {
-                    if (parsed[header]) {
-                        message.addHeader("record-route", headerValue.substring(parsed[header].position, parsed[header].offset));
-                        message.headers["Record-Route"][message.getHeaders("record-route").length - 1].parsed =
-                            parsed[header].parsed;
-                    }
-                }
-                break;
-            case "call-id":
-            case "i":
-                message.setHeader("call-id", headerValue);
-                parsed = message.parseHeader("call-id");
-                if (parsed) {
-                    message.callId = headerValue;
-                }
-                break;
-            case "contact":
-            case "m":
-                parsed = core_1.Grammar.parse(headerValue, "Contact");
-                if (parsed === -1) {
-                    parsed = undefined;
-                    break;
-                }
-                if (!(parsed instanceof Array)) {
-                    parsed = undefined;
-                    break;
-                }
-                parsed.forEach(function (header) {
-                    message.addHeader("contact", headerValue.substring(header.position, header.offset));
-                    message.headers.Contact[message.getHeaders("contact").length - 1].parsed = header.parsed;
-                });
-                break;
-            case "content-length":
-            case "l":
-                message.setHeader("content-length", headerValue);
-                parsed = message.parseHeader("content-length");
-                break;
-            case "content-type":
-            case "c":
-                message.setHeader("content-type", headerValue);
-                parsed = message.parseHeader("content-type");
-                break;
-            case "cseq":
-                message.setHeader("cseq", headerValue);
-                parsed = message.parseHeader("cseq");
-                if (parsed) {
-                    message.cseq = parsed.value;
-                }
-                if (message instanceof core_1.IncomingResponseMessage) {
-                    message.method = parsed.method;
-                }
-                break;
-            case "max-forwards":
-                message.setHeader("max-forwards", headerValue);
-                parsed = message.parseHeader("max-forwards");
-                break;
-            case "www-authenticate":
-                message.setHeader("www-authenticate", headerValue);
-                parsed = message.parseHeader("www-authenticate");
-                break;
-            case "proxy-authenticate":
-                message.setHeader("proxy-authenticate", headerValue);
-                parsed = message.parseHeader("proxy-authenticate");
-                break;
-            case "refer-to":
-            case "r":
-                message.setHeader("refer-to", headerValue);
-                parsed = message.parseHeader("refer-to");
-                if (parsed) {
-                    message.referTo = parsed;
-                }
-                break;
-            default:
-                // Do not parse this header.
-                message.addHeader(headerName.toLowerCase(), headerValue);
-                parsed = 0;
-        }
-        if (parsed === undefined) {
-            return {
-                error: "error parsing header '" + headerName + "'"
-            };
-        }
-        else {
-            return true;
-        }
-    }
-    Parser.parseHeader = parseHeader;
-    /** Parse SIP Message
-     * @function
-     * @param {String} message SIP message.
-     * @param {Object} logger object.
-     * @returns {SIP.IncomingRequest|SIP.IncomingResponse|undefined}
-     */
-    function parseMessage(data, logger) {
-        var headerStart = 0;
-        var headerEnd = data.indexOf("\r\n");
-        if (headerEnd === -1) {
-            logger.warn("no CRLF found, not a SIP message, discarded");
-            return;
-        }
-        // Parse first line. Check if it is a Request or a Reply.
-        var firstLine = data.substring(0, headerEnd);
-        var parsed = core_1.Grammar.parse(firstLine, "Request_Response");
-        var message;
-        if (parsed === -1) {
-            logger.warn('error parsing first line of SIP message: "' + firstLine + '"');
-            return;
-        }
-        else if (!parsed.status_code) {
-            message = new core_1.IncomingRequestMessage();
-            message.method = parsed.method;
-            message.ruri = parsed.uri;
-        }
-        else {
-            message = new core_1.IncomingResponseMessage();
-            message.statusCode = parsed.status_code;
-            message.reasonPhrase = parsed.reason_phrase;
-        }
-        message.data = data;
-        headerStart = headerEnd + 2;
-        /* Loop over every line in data. Detect the end of each header and parse
-        * it or simply add to the headers collection.
-        */
-        var bodyStart;
-        while (true) {
-            headerEnd = getHeader(data, headerStart);
-            // The SIP message has normally finished.
-            if (headerEnd === -2) {
-                bodyStart = headerStart + 2;
-                break;
-            }
-            else if (headerEnd === -1) {
-                // data.indexOf returned -1 due to a malformed message.
-                logger.error("malformed message");
-                return;
-            }
-            var parsedHeader = parseHeader(message, data, headerStart, headerEnd);
-            if (parsedHeader !== true) {
-                logger.error(parsed.error);
-                return;
-            }
-            headerStart = headerEnd + 2;
-        }
-        /* RFC3261 18.3.
-        * If there are additional bytes in the transport packet
-        * beyond the end of the body, they MUST be discarded.
-        */
-        if (message.hasHeader("content-length")) {
-            message.body = data.substr(bodyStart, Number(message.getHeader("content-length")));
-        }
-        else {
-            message.body = data.substring(bodyStart);
-        }
-        return message;
-    }
-    Parser.parseMessage = parseMessage;
-})(Parser = exports.Parser || (exports.Parser = {}));
-
-
-/***/ }),
 /* 86 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -13232,12 +13227,12 @@ var Parser;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(79);
-var Constants_1 = __webpack_require__(80);
+var ClientContext_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
+var Utils_1 = __webpack_require__(84);
 /**
  * SIP Publish (SIP Extension for Event State Publication RFC3903)
  * @class Class creating a SIP PublishContext.
@@ -13511,11 +13506,11 @@ exports.PublishContext = PublishContext;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(79);
-var Constants_1 = __webpack_require__(80);
+var ClientContext_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
 var ServerContext_1 = __webpack_require__(88);
 // tslint:disable-next-line:max-classes-per-file
 var ReferClientContext = /** @class */ (function (_super) {
@@ -13862,11 +13857,11 @@ exports.ReferServerContext = ReferServerContext;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Utils_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(83);
+var Utils_1 = __webpack_require__(84);
 var ServerContext = /** @class */ (function (_super) {
     tslib_1.__extends(ServerContext, _super);
     function ServerContext(ua, incomingRequest) {
@@ -13988,12 +13983,12 @@ exports.ServerContext = ServerContext;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(79);
-var Constants_1 = __webpack_require__(80);
+var ClientContext_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
+var Utils_1 = __webpack_require__(84);
 /**
  * Configuration load.
  * @private
@@ -14406,16 +14401,17 @@ exports.RegisterContext = RegisterContext;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var ClientContext_1 = __webpack_require__(79);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
+var ClientContext_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
 var ReferContext_1 = __webpack_require__(87);
 var ServerContext_1 = __webpack_require__(88);
 var DTMF_1 = __webpack_require__(91);
-var Utils_1 = __webpack_require__(83);
+var DTMFValidator_1 = __webpack_require__(92);
+var Utils_1 = __webpack_require__(84);
 /*
  * @param {function returning SIP.sessionDescriptionHandler} [sessionDescriptionHandlerFactory]
  *        (See the documentation for the sessionDescriptionHandlerFactory argument of the UA constructor.)
@@ -14460,10 +14456,8 @@ var Session = /** @class */ (function (_super) {
         if (this.status !== Enums_1.SessionStatus.STATUS_CONFIRMED && this.status !== Enums_1.SessionStatus.STATUS_WAITING_FOR_ACK) {
             throw new Exceptions_1.Exceptions.InvalidStateError(this.status);
         }
-        // Check tones
-        if (!tones || !tones.toString().match(/^[0-9A-D#*,]+$/i)) {
-            throw new TypeError("Invalid tones: " + tones);
-        }
+        // Check tones' validity
+        DTMFValidator_1.DTMFValidator.validate(tones);
         var sendDTMF = function () {
             if (_this.status === Enums_1.SessionStatus.STATUS_TERMINATED || !_this.tones || _this.tones.length === 0) {
                 // Stop sending DTMF
@@ -16605,11 +16599,12 @@ exports.InviteClientContext = InviteClientContext;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var Constants_1 = __webpack_require__(80);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
+var events_1 = __webpack_require__(31);
+var Constants_1 = __webpack_require__(81);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
+var Utils_1 = __webpack_require__(84);
+var DTMFValidator_1 = __webpack_require__(92);
 /**
  * @class DTMF
  * @param {SIP.Session} session
@@ -16632,23 +16627,10 @@ var DTMF = /** @class */ (function (_super) {
         }
         _this.logger = session.ua.getLogger("sip.invitecontext.dtmf", session.id);
         _this.owner = session;
-        // Check tone type
-        if (typeof tone === "string") {
-            tone = tone.toUpperCase();
-        }
-        else if (typeof tone === "number") {
-            tone = tone.toString();
-        }
-        else {
-            throw new TypeError("Invalid tone: " + tone);
-        }
-        // Check tone value
-        if (!tone.match(/^[0-9A-D#*]$/)) {
-            throw new TypeError("Invalid tone: " + tone);
-        }
-        else {
-            _this.tone = tone;
-        }
+        var moreThanOneTone = false;
+        // If tone is invalid, it will automatically generate an exception.
+        // Otherwise, it will return the tone in the correct format.
+        _this.tone = DTMFValidator_1.DTMFValidator.validate(tone, moreThanOneTone);
         var duration = options.duration;
         var interToneGap = options.interToneGap;
         // Check duration
@@ -16763,13 +16745,51 @@ exports.DTMF = DTMF;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+var DTMFValidator = /** @class */ (function () {
+    function DTMFValidator() {
+    }
+    DTMFValidator.validate = function (tone, moreThanOneTone) {
+        if (moreThanOneTone === void 0) { moreThanOneTone = true; }
+        // Check tone type
+        if (typeof tone === "string") {
+            tone = tone.toUpperCase();
+        }
+        else if (typeof tone === "number") {
+            tone = tone.toString();
+        }
+        else {
+            DTMFValidator.generateInvalidToneError(tone);
+        }
+        var regex = moreThanOneTone ? /^[0-9A-D#*,]+$/i : /^[0-9A-D#*]$/i;
+        // Check tone value
+        if (!tone.match(regex)) {
+            DTMFValidator.generateInvalidToneError(tone);
+        }
+        return tone;
+    };
+    DTMFValidator.generateInvalidToneError = function (tone) {
+        var toneForMsg = (!!tone && typeof tone !== "boolean" ? tone.toString().toLowerCase() : tone);
+        throw new TypeError("Invalid tone(s): " + toneForMsg);
+    };
+    return DTMFValidator;
+}());
+exports.DTMFValidator = DTMFValidator;
+
+
+/***/ }),
+/* 93 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var allowed_methods_1 = __webpack_require__(58);
-var Enums_1 = __webpack_require__(82);
-var Utils_1 = __webpack_require__(83);
+var allowed_methods_1 = __webpack_require__(59);
+var Enums_1 = __webpack_require__(83);
+var Utils_1 = __webpack_require__(84);
 /**
  * While this class is named `Subscription`, it is closer to
  * an implementation of a "subscriber" as defined in RFC 6665
@@ -17197,29 +17217,28 @@ var SubscribeClientContext = /** @class */ (function () {
 
 
 /***/ }),
-/* 93 */
+/* 94 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var ClientContext_1 = __webpack_require__(79);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
+var ClientContext_1 = __webpack_require__(80);
+var Constants_1 = __webpack_require__(81);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Parser_1 = __webpack_require__(85);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
 var PublishContext_1 = __webpack_require__(86);
 var ReferContext_1 = __webpack_require__(87);
 var RegisterContext_1 = __webpack_require__(89);
 var ServerContext_1 = __webpack_require__(88);
 var Session_1 = __webpack_require__(90);
-var Subscription_1 = __webpack_require__(92);
-var Utils_1 = __webpack_require__(83);
-var SessionDescriptionHandler_1 = __webpack_require__(94);
-var Transport_1 = __webpack_require__(103);
+var Subscription_1 = __webpack_require__(93);
+var Utils_1 = __webpack_require__(84);
+var SessionDescriptionHandler_1 = __webpack_require__(95);
+var Transport_1 = __webpack_require__(109);
 /**
  * @class Class creating a SIP User Agent.
  * @param {function returning SIP.sessionDescriptionHandler} [configuration.sessionDescriptionHandlerFactory]
@@ -17712,7 +17731,7 @@ var UA = /** @class */ (function (_super) {
      */
     UA.prototype.onTransportReceiveMsg = function (messageString) {
         var _this = this;
-        var message = Parser_1.Parser.parseMessage(messageString, this.getLogger("sip.parser"));
+        var message = core_1.Parser.parseMessage(messageString, this.getLogger("sip.parser"));
         if (!message) {
             this.logger.warn("UA failed to parse incoming SIP message - discarding.");
             return;
@@ -18311,20 +18330,20 @@ exports.makeUserAgentCoreConfigurationFromUA = makeUserAgentCoreConfigurationFro
 
 
 /***/ }),
-/* 94 */
+/* 95 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var session_1 = __webpack_require__(95);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
-var Modifiers = tslib_1.__importStar(__webpack_require__(101));
-var SessionDescriptionHandlerObserver_1 = __webpack_require__(102);
+var events_1 = __webpack_require__(31);
+var session_1 = __webpack_require__(96);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
+var Utils_1 = __webpack_require__(84);
+var Modifiers = tslib_1.__importStar(__webpack_require__(107));
+var SessionDescriptionHandlerObserver_1 = __webpack_require__(108);
 /* SessionDescriptionHandler
  * @class PeerConnection helper Class.
  * @param {SIP.Session} session
@@ -18937,31 +18956,48 @@ exports.SessionDescriptionHandler = SessionDescriptionHandler;
 
 
 /***/ }),
-/* 95 */
+/* 96 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var Constants_1 = __webpack_require__(80);
+var events_1 = __webpack_require__(31);
 var core_1 = __webpack_require__(2);
-var allowed_methods_1 = __webpack_require__(58);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
-var emitter_1 = __webpack_require__(96);
-var info_1 = __webpack_require__(97);
-var notification_1 = __webpack_require__(98);
-var referral_1 = __webpack_require__(99);
-var session_state_1 = __webpack_require__(100);
+var utils_1 = __webpack_require__(16);
+var allowed_methods_1 = __webpack_require__(59);
+var emitter_1 = __webpack_require__(97);
+var exceptions_1 = __webpack_require__(98);
+var info_1 = __webpack_require__(103);
+var notification_1 = __webpack_require__(104);
+var referral_1 = __webpack_require__(105);
+var session_state_1 = __webpack_require__(106);
+/**
+ * Deprecated
+ * @internal
+ */
+var _SessionStatus;
+(function (_SessionStatus) {
+    // Session states
+    _SessionStatus[_SessionStatus["STATUS_NULL"] = 0] = "STATUS_NULL";
+    _SessionStatus[_SessionStatus["STATUS_INVITE_SENT"] = 1] = "STATUS_INVITE_SENT";
+    _SessionStatus[_SessionStatus["STATUS_1XX_RECEIVED"] = 2] = "STATUS_1XX_RECEIVED";
+    _SessionStatus[_SessionStatus["STATUS_INVITE_RECEIVED"] = 3] = "STATUS_INVITE_RECEIVED";
+    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_ANSWER"] = 4] = "STATUS_WAITING_FOR_ANSWER";
+    _SessionStatus[_SessionStatus["STATUS_ANSWERED"] = 5] = "STATUS_ANSWERED";
+    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_PRACK"] = 6] = "STATUS_WAITING_FOR_PRACK";
+    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_ACK"] = 7] = "STATUS_WAITING_FOR_ACK";
+    _SessionStatus[_SessionStatus["STATUS_CANCELED"] = 8] = "STATUS_CANCELED";
+    _SessionStatus[_SessionStatus["STATUS_TERMINATED"] = 9] = "STATUS_TERMINATED";
+    _SessionStatus[_SessionStatus["STATUS_ANSWERED_WAITING_FOR_PRACK"] = 10] = "STATUS_ANSWERED_WAITING_FOR_PRACK";
+    _SessionStatus[_SessionStatus["STATUS_EARLY_MEDIA"] = 11] = "STATUS_EARLY_MEDIA";
+    _SessionStatus[_SessionStatus["STATUS_CONFIRMED"] = 12] = "STATUS_CONFIRMED";
+})(_SessionStatus = exports._SessionStatus || (exports._SessionStatus = {}));
 /**
  * A session provides real time communication between one or more participants.
  * @public
  */
-var Session = /** @class */ (function (_super) {
-    tslib_1.__extends(Session, _super);
+var Session = /** @class */ (function () {
     /**
      * Constructor.
      * @param userAgent - User agent. See {@link UserAgent} for details.
@@ -18969,84 +19005,37 @@ var Session = /** @class */ (function (_super) {
      */
     function Session(userAgent, options) {
         if (options === void 0) { options = {}; }
-        var _this = _super.call(this) || this;
-        // Property overlap with ClientContext & ServerContext Interfaces
         /** @internal */
-        _this.type = Enums_1.TypeStrings.Session;
-        /** @internal */
-        _this.method = Constants_1.C.INVITE;
-        /** @internal */
-        _this.localHold = false;
-        /** DEPRECATED: Session status */
-        /** @internal */
-        _this.status = Enums_1.SessionStatus.STATUS_NULL;
+        this.localHold = false;
         /** True if an error caused session termination. */
         /** @internal */
-        _this.isFailed = false;
+        this.isFailed = false;
         /** @internal */
-        _this.rel100 = Constants_1.C.supported.UNSUPPORTED;
+        this.rel100 = "none";
         /** @internal */
-        _this.expiresTimer = undefined;
+        this.status = _SessionStatus.STATUS_NULL;
         /** @internal */
-        _this.userNoAnswerTimer = undefined;
-        _this._state = session_state_1.SessionState.Initial;
-        _this._stateEventEmitter = new events_1.EventEmitter();
-        _this.pendingReinvite = false;
-        _this.tones = undefined;
-        _this.userAgent = userAgent;
-        _this.delegate = options.delegate;
-        _this.logger = userAgent.getLogger("sip.session");
-        return _this;
+        this.expiresTimer = undefined;
+        /** @internal */
+        this.userNoAnswerTimer = undefined;
+        this._state = session_state_1.SessionState.Initial;
+        this._stateEventEmitter = new events_1.EventEmitter();
+        this.pendingReinvite = false;
+        this.userAgent = userAgent;
+        this.delegate = options.delegate;
+        this.logger = userAgent.getLogger("sip.session");
     }
-    /**
-     * Called to cleanup session after terminated.
-     * @internal
-     */
-    Session.prototype.close = function () {
-        this.logger.log("Session[" + this.id + "].close");
-        if (this.status === Enums_1.SessionStatus.STATUS_TERMINATED) {
-            return;
-        }
-        // 1st Step. Terminate media.
-        if (this._sessionDescriptionHandler) {
-            this._sessionDescriptionHandler.close();
-        }
-        // 2nd Step. Terminate signaling.
-        // Clear session timers
-        if (this.expiresTimer) {
-            clearTimeout(this.expiresTimer);
-        }
-        if (this.userNoAnswerTimer) {
-            clearTimeout(this.userNoAnswerTimer);
-        }
-        this.status = Enums_1.SessionStatus.STATUS_TERMINATED;
-        if (!this.id) {
-            throw new Error("Session id undefined.");
-        }
-        delete this.userAgent.sessions[this.id];
-        return;
-    };
-    /**
-     * @deprecated Legacy state transition.
-     * @internal
-     */
-    Session.prototype.on = function (name, callback) {
-        return _super.prototype.on.call(this, name, callback);
-    };
-    /**
-     * @deprecated Legacy state transition.
-     * @internal
-     */
-    Session.prototype.emit = function (event) {
-        var args = [];
-        for (var _i = 1; _i < arguments.length; _i++) {
-            args[_i - 1] = arguments[_i];
-        }
-        return _super.prototype.emit.apply(this, tslib_1.__spreadArrays([event], args));
-    };
     Object.defineProperty(Session.prototype, "sessionDescriptionHandler", {
         /**
          * Session description handler.
+         * @remarks
+         * If `this` is an instance of `Invitation`,
+         * `sessionDescriptionHandler` will be defined when the session state changes to "established".
+         * If `this` is an instance of `Inviter` and an offer was sent in the INVITE,
+         * `sessionDescriptionHandler` will be defined when the session state changes to "establishing".
+         * If `this` is an instance of `Inviter` and an offer was not sent in the INVITE,
+         * `sessionDescriptionHandler` will be defined when the session state changes to "established".
+         * Otherwise `undefined`.
          */
         get: function () {
             return this._sessionDescriptionHandler;
@@ -19221,7 +19210,7 @@ var Session = /** @class */ (function (_super) {
                                 throw new Error("Dialog undefined.");
                             }
                             var extraHeaders = [];
-                            extraHeaders.push("Reason: " + Utils_1.Utils.getReasonHeaderValue(500, "Internal Server Error"));
+                            extraHeaders.push("Reason: " + _this.getReasonHeaderValue(500, "Internal Server Error"));
                             _this.dialog.bye(undefined, { extraHeaders: extraHeaders });
                             _this.stateTransition(session_state_1.SessionState.Terminated);
                             _this.isFailed = true;
@@ -19279,7 +19268,7 @@ var Session = /** @class */ (function (_super) {
      * @param options - Request options bucket.
      * @internal
      */
-    Session.prototype.bye = function (delegate, options) {
+    Session.prototype._bye = function (delegate, options) {
         var _this = this;
         // Using core session dialog
         if (!this.dialog) {
@@ -19328,12 +19317,40 @@ var Session = /** @class */ (function (_super) {
         }
     };
     /**
+     * Called to cleanup session after terminated.
+     * @internal
+     */
+    Session.prototype._close = function () {
+        this.logger.log("Session[" + this.id + "]._close");
+        if (this.status === _SessionStatus.STATUS_TERMINATED) {
+            return;
+        }
+        // 1st Step. Terminate media.
+        if (this._sessionDescriptionHandler) {
+            this._sessionDescriptionHandler.close();
+        }
+        // 2nd Step. Terminate signaling.
+        // Clear session timers
+        if (this.expiresTimer) {
+            clearTimeout(this.expiresTimer);
+        }
+        if (this.userNoAnswerTimer) {
+            clearTimeout(this.userNoAnswerTimer);
+        }
+        this.status = _SessionStatus.STATUS_TERMINATED;
+        if (!this.id) {
+            throw new Error("Session id undefined.");
+        }
+        delete this.userAgent.sessions[this.id];
+        return;
+    };
+    /**
      * Send INFO.
      * @param delegate - Request delegate.
      * @param options - Request options bucket.
      * @internal
      */
-    Session.prototype.info = function (delegate, options) {
+    Session.prototype._info = function (delegate, options) {
         // Using core session dialog
         if (!this.dialog) {
             return Promise.reject(new Error("Session dialog undefined."));
@@ -19372,7 +19389,7 @@ var Session = /** @class */ (function (_super) {
         response.ack();
         var extraHeaders = [];
         if (statusCode) {
-            extraHeaders.push("Reason: " + Utils_1.Utils.getReasonHeaderValue(statusCode, reasonPhrase));
+            extraHeaders.push("Reason: " + this.getReasonHeaderValue(statusCode, reasonPhrase));
         }
         // Using the dialog session associate with the response (which might not be this.dialog)
         response.session.bye(undefined, { extraHeaders: extraHeaders });
@@ -19384,16 +19401,9 @@ var Session = /** @class */ (function (_super) {
     Session.prototype.onAckRequest = function (request) {
         var _this = this;
         this.logger.log("Session.onAckRequest");
-        if (this.state !== session_state_1.SessionState.Initial &&
-            this.state !== session_state_1.SessionState.Establishing &&
-            this.state !== session_state_1.SessionState.Established &&
-            this.state !== session_state_1.SessionState.Terminating) {
+        if (this.state !== session_state_1.SessionState.Established && this.state !== session_state_1.SessionState.Terminating) {
             this.logger.error("ACK received while in state " + this.state + ", dropping request");
             return;
-        }
-        // FIXME: Review is this ever true? We're "Established" when dialog created in accept().
-        if (this.state === session_state_1.SessionState.Initial || this.state === session_state_1.SessionState.Establishing) {
-            this.stateTransition(session_state_1.SessionState.Established);
         }
         var dialog = this.dialog;
         if (!dialog) {
@@ -19405,7 +19415,7 @@ var Session = /** @class */ (function (_super) {
                 // So we must have never has sent an offer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
                 this.isFailed = true;
-                var extraHeaders = ["Reason: " + Utils_1.Utils.getReasonHeaderValue(488, "Bad Media Description")];
+                var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
                 return;
@@ -19416,17 +19426,17 @@ var Session = /** @class */ (function (_super) {
                 var body = core_1.getBody(request.message);
                 // If the ACK doesn't have an answer, nothing to be done.
                 if (!body) {
-                    this.status = Enums_1.SessionStatus.STATUS_CONFIRMED;
+                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 if (body.contentDisposition === "render") {
                     this.renderbody = body.content;
                     this.rendertype = body.contentType;
-                    this.status = Enums_1.SessionStatus.STATUS_CONFIRMED;
+                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 if (body.contentDisposition !== "session") {
-                    this.status = Enums_1.SessionStatus.STATUS_CONFIRMED;
+                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 // Receved answer in ACK.
@@ -19435,11 +19445,11 @@ var Session = /** @class */ (function (_super) {
                     sessionDescriptionHandlerModifiers: this.sessionDescriptionHandlerModifiers
                 };
                 this.setAnswer(body, options)
-                    .then(function () { _this.status = Enums_1.SessionStatus.STATUS_CONFIRMED; })
+                    .then(function () { _this.status = _SessionStatus.STATUS_CONFIRMED; })
                     .catch(function (error) {
                     _this.logger.error(error.message);
                     _this.isFailed = true;
-                    var extraHeaders = ["Reason: " + Utils_1.Utils.getReasonHeaderValue(488, "Bad Media Description")];
+                    var extraHeaders = ["Reason: " + _this.getReasonHeaderValue(488, "Bad Media Description")];
                     dialog.bye(undefined, { extraHeaders: extraHeaders });
                     _this.stateTransition(session_state_1.SessionState.Terminated);
                 });
@@ -19450,7 +19460,7 @@ var Session = /** @class */ (function (_super) {
                 // So we must have received an ACK without an answer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
                 this.isFailed = true;
-                var extraHeaders = ["Reason: " + Utils_1.Utils.getReasonHeaderValue(488, "Bad Media Description")];
+                var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
                 return;
@@ -19460,7 +19470,7 @@ var Session = /** @class */ (function (_super) {
                 // So we must have never has sent an answer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
                 this.isFailed = true;
-                var extraHeaders = ["Reason: " + Utils_1.Utils.getReasonHeaderValue(488, "Bad Media Description")];
+                var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
                 return;
@@ -19573,7 +19583,7 @@ var Session = /** @class */ (function (_super) {
                         throw new Error("Dialog undefined.");
                     }
                     var extraHeadersBye = [];
-                    extraHeadersBye.push("Reason: " + Utils_1.Utils.getReasonHeaderValue(500, "Internal Server Error"));
+                    extraHeadersBye.push("Reason: " + _this.getReasonHeaderValue(500, "Internal Server Error"));
                     _this.dialog.bye(undefined, { extraHeaders: extraHeaders });
                     _this.stateTransition(session_state_1.SessionState.Terminated);
                     _this.isFailed = true;
@@ -19633,7 +19643,7 @@ var Session = /** @class */ (function (_super) {
             this.logger.error("REFER received while in state " + this.state + ", dropping request");
             return;
         }
-        if (this.status === Enums_1.SessionStatus.STATUS_CONFIRMED) {
+        if (this.status === _SessionStatus.STATUS_CONFIRMED) {
             // RFC 3515 2.4.1
             if (!request.message.hasHeader("refer-to")) {
                 this.logger.warn("Invalid REFER packet. A refer-to header is required. Rejecting.");
@@ -19733,7 +19743,7 @@ var Session = /** @class */ (function (_super) {
         // This is intentionally written very defensively. Don't trust SDH to behave.
         try {
             return sdh.getDescription(sdhOptions, sdhModifiers)
-                .then(function (bodyAndContentType) { return Utils_1.Utils.fromBodyObj(bodyAndContentType); })
+                .then(function (bodyAndContentType) { return core_1.fromBodyLegacy(bodyAndContentType); })
                 .catch(function (error) {
                 _this.logger.error("Session.getOffer: SDH getDescription rejected...");
                 var e = error instanceof Error ? error : new Error(error);
@@ -19787,7 +19797,7 @@ var Session = /** @class */ (function (_super) {
         // This is intentionally written very defensively. Don't trust SDH to behave.
         try {
             if (!sdh.hasDescription(answer.contentType)) {
-                return Promise.reject(new Exceptions_1.Exceptions.UnsupportedSessionDescriptionContentTypeError());
+                return Promise.reject(new exceptions_1.ContentTypeUnsupportedError());
             }
         }
         catch (error) {
@@ -19824,7 +19834,7 @@ var Session = /** @class */ (function (_super) {
         // This is intentionally written very defensively. Don't trust SDH to behave.
         try {
             if (!sdh.hasDescription(offer.contentType)) {
-                return Promise.reject(new Exceptions_1.Exceptions.UnsupportedSessionDescriptionContentTypeError());
+                return Promise.reject(new exceptions_1.ContentTypeUnsupportedError());
             }
         }
         catch (error) {
@@ -19836,7 +19846,7 @@ var Session = /** @class */ (function (_super) {
         try {
             return sdh.setDescription(offer.content, sdhOptions, sdhModifiers)
                 .then(function () { return sdh.getDescription(sdhOptions, sdhModifiers); })
-                .then(function (bodyAndContentType) { return Utils_1.Utils.fromBodyObj(bodyAndContentType); })
+                .then(function (bodyAndContentType) { return core_1.fromBodyLegacy(bodyAndContentType); })
                 .catch(function (error) {
                 _this.logger.error("Session.setOfferAndGetAnswer: SDH setDescription or getDescription rejected...");
                 var e = error instanceof Error ? error : new Error(error);
@@ -19871,7 +19881,6 @@ var Session = /** @class */ (function (_super) {
         }
         this._sessionDescriptionHandler =
             this.sessionDescriptionHandlerFactory(this, this.userAgent.configuration.sessionDescriptionHandlerFactoryOptions);
-        this.emit("SessionDescriptionHandler-created", this._sessionDescriptionHandler);
         return this._sessionDescriptionHandler;
     };
     /**
@@ -19922,23 +19931,28 @@ var Session = /** @class */ (function (_super) {
         }
         if (newState === session_state_1.SessionState.Terminated) {
             this.endTime = new Date(); // Deprecated legacy ported behavior
-            this.close();
+            this._close();
         }
         // Transition
         this._state = newState;
         this.logger.log("Session " + this.id + " transitioned to state " + this._state);
         this._stateEventEmitter.emit("event", this._state);
     };
-    // DEPRECATED
-    /** @internal */
-    Session.C = Enums_1.SessionStatus;
+    Session.prototype.getReasonHeaderValue = function (code, reason) {
+        var cause = code;
+        var text = utils_1.getReasonPhrase(code);
+        if (!text && reason) {
+            text = reason;
+        }
+        return "SIP;cause=" + cause + ';text="' + text + '"';
+    };
     return Session;
-}(events_1.EventEmitter));
+}());
 exports.Session = Session;
 
 
 /***/ }),
-/* 96 */
+/* 97 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19968,7 +19982,114 @@ exports.makeEmitter = makeEmitter;
 
 
 /***/ }),
-/* 97 */
+/* 98 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+tslib_1.__exportStar(__webpack_require__(99), exports);
+tslib_1.__exportStar(__webpack_require__(100), exports);
+tslib_1.__exportStar(__webpack_require__(101), exports);
+tslib_1.__exportStar(__webpack_require__(102), exports);
+
+
+/***/ }),
+/* 99 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var core_1 = __webpack_require__(2);
+/**
+ * An exception indicating an unsupported content type prevented execution.
+ * @public
+ */
+var ContentTypeUnsupportedError = /** @class */ (function (_super) {
+    tslib_1.__extends(ContentTypeUnsupportedError, _super);
+    function ContentTypeUnsupportedError(message) {
+        return _super.call(this, message ? message : "Unsupported content type.") || this;
+    }
+    return ContentTypeUnsupportedError;
+}(core_1.Exception));
+exports.ContentTypeUnsupportedError = ContentTypeUnsupportedError;
+
+
+/***/ }),
+/* 100 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var core_1 = __webpack_require__(2);
+/**
+ * An exception indicating an outstanding prior request prevented execution.
+ * @public
+ */
+var RequestPendingError = /** @class */ (function (_super) {
+    tslib_1.__extends(RequestPendingError, _super);
+    /** @internal */
+    function RequestPendingError(message) {
+        return _super.call(this, message ? message : "Request pending.") || this;
+    }
+    return RequestPendingError;
+}(core_1.Exception));
+exports.RequestPendingError = RequestPendingError;
+
+
+/***/ }),
+/* 101 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var core_1 = __webpack_require__(2);
+/**
+ * An exception indicating a session description handler error occured.
+ * @public
+ */
+var SessionDescriptionHandlerError = /** @class */ (function (_super) {
+    tslib_1.__extends(SessionDescriptionHandlerError, _super);
+    function SessionDescriptionHandlerError(message) {
+        return _super.call(this, message ? message : "Unspecified session description handler error.") || this;
+    }
+    return SessionDescriptionHandlerError;
+}(core_1.Exception));
+exports.SessionDescriptionHandlerError = SessionDescriptionHandlerError;
+
+
+/***/ }),
+/* 102 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var core_1 = __webpack_require__(2);
+/**
+ * An exception indicating the session terminated before the action completed.
+ * @public
+ */
+var SessionTerminatedError = /** @class */ (function (_super) {
+    tslib_1.__extends(SessionTerminatedError, _super);
+    function SessionTerminatedError() {
+        return _super.call(this, "The session has terminated.") || this;
+    }
+    return SessionTerminatedError;
+}(core_1.Exception));
+exports.SessionTerminatedError = SessionTerminatedError;
+
+
+/***/ }),
+/* 103 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20007,7 +20128,7 @@ exports.Info = Info;
 
 
 /***/ }),
-/* 98 */
+/* 104 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20046,7 +20167,7 @@ exports.Notification = Notification;
 
 
 /***/ }),
-/* 99 */
+/* 105 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20149,7 +20270,7 @@ exports.Referral = Referral;
 
 
 /***/ }),
-/* 100 */
+/* 106 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20184,7 +20305,7 @@ var SessionState;
 
 
 /***/ }),
-/* 101 */
+/* 107 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20312,13 +20433,14 @@ exports.addMidLines = addMidLines;
 
 
 /***/ }),
-/* 102 */
+/* 108 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var Enums_1 = __webpack_require__(82);
+var session_1 = __webpack_require__(96);
+var Enums_1 = __webpack_require__(83);
 /* SessionDescriptionHandlerObserver
  * @class SessionDescriptionHandler Observer Class.
  * @param {SIP.Session} session
@@ -20331,9 +20453,15 @@ var SessionDescriptionHandlerObserver = /** @class */ (function () {
         this.options = options;
     }
     SessionDescriptionHandlerObserver.prototype.trackAdded = function () {
+        if (this.session instanceof session_1.Session) {
+            return;
+        }
         this.session.emit("trackAdded");
     };
     SessionDescriptionHandlerObserver.prototype.directionChanged = function () {
+        if (this.session instanceof session_1.Session) {
+            return;
+        }
         this.session.emit("directionChanged");
     };
     return SessionDescriptionHandlerObserver;
@@ -20342,7 +20470,7 @@ exports.SessionDescriptionHandlerObserver = SessionDescriptionHandlerObserver;
 
 
 /***/ }),
-/* 103 */
+/* 109 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20350,9 +20478,9 @@ exports.SessionDescriptionHandlerObserver = SessionDescriptionHandlerObserver;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(82);
-var Exceptions_1 = __webpack_require__(84);
-var Utils_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(83);
+var Exceptions_1 = __webpack_require__(85);
+var Utils_1 = __webpack_require__(84);
 var TransportStatus;
 (function (TransportStatus) {
     TransportStatus[TransportStatus["STATUS_CONNECTING"] = 0] = "STATUS_CONNECTING";
@@ -21071,34 +21199,34 @@ exports.Transport = Transport;
 
 
 /***/ }),
-/* 104 */
+/* 110 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var Modifiers = tslib_1.__importStar(__webpack_require__(101));
+var Modifiers = tslib_1.__importStar(__webpack_require__(107));
 exports.Modifiers = Modifiers;
-var Simple_1 = __webpack_require__(105);
+var Simple_1 = __webpack_require__(111);
 exports.Simple = Simple_1.Simple;
-var SessionDescriptionHandler_1 = __webpack_require__(94);
+var SessionDescriptionHandler_1 = __webpack_require__(95);
 exports.SessionDescriptionHandler = SessionDescriptionHandler_1.SessionDescriptionHandler;
-var Transport_1 = __webpack_require__(103);
+var Transport_1 = __webpack_require__(109);
 exports.Transport = Transport_1.Transport;
 
 
 /***/ }),
-/* 105 */
+/* 111 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(30);
-var UA_1 = __webpack_require__(93);
-var Modifiers = tslib_1.__importStar(__webpack_require__(101));
+var events_1 = __webpack_require__(31);
+var UA_1 = __webpack_require__(94);
+var Modifiers = tslib_1.__importStar(__webpack_require__(107));
 /* Simple
  * @class Simple
  */
