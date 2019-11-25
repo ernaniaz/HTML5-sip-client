@@ -1,6 +1,6 @@
 /*!
  * 
- *  SIP version 0.15.7
+ *  SIP version 0.15.8
  *  Copyright (c) 2014-2019 Junction Networks, Inc <http://www.onsip.com>
  *  Homepage: https://sipjs.com
  *  License: https://sipjs.com/license/
@@ -149,34 +149,35 @@ exports.NameAddrHeader = core_1.NameAddrHeader;
 exports.OutgoingRequest = core_1.OutgoingRequestMessage;
 exports.Parser = core_1.Parser;
 exports.Timers = core_1.Timers;
-exports.Transport = core_1.Transport;
 exports.URI = core_1.URI;
-var ClientContext_1 = __webpack_require__(80);
+var ClientContext_1 = __webpack_require__(79);
 exports.ClientContext = ClientContext_1.ClientContext;
-var Constants_1 = __webpack_require__(81);
+var Constants_1 = __webpack_require__(80);
 exports.C = Constants_1.C;
-var Enums_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(82);
 exports.DialogStatus = Enums_1.DialogStatus;
 exports.SessionStatus = Enums_1.SessionStatus;
 exports.TypeStrings = Enums_1.TypeStrings;
 exports.UAStatus = Enums_1.UAStatus;
-var Exceptions_1 = __webpack_require__(85);
+var Exceptions_1 = __webpack_require__(84);
 exports.Exceptions = Exceptions_1.Exceptions;
-var PublishContext_1 = __webpack_require__(86);
+var PublishContext_1 = __webpack_require__(85);
 exports.PublishContext = PublishContext_1.PublishContext;
-var ReferContext_1 = __webpack_require__(87);
+var ReferContext_1 = __webpack_require__(86);
 exports.ReferClientContext = ReferContext_1.ReferClientContext;
 exports.ReferServerContext = ReferContext_1.ReferServerContext;
-var RegisterContext_1 = __webpack_require__(89);
+var RegisterContext_1 = __webpack_require__(88);
 exports.RegisterContext = RegisterContext_1.RegisterContext;
-var ServerContext_1 = __webpack_require__(88);
+var ServerContext_1 = __webpack_require__(87);
 exports.ServerContext = ServerContext_1.ServerContext;
-var Session_1 = __webpack_require__(90);
+var Session_1 = __webpack_require__(89);
 exports.InviteClientContext = Session_1.InviteClientContext;
 exports.InviteServerContext = Session_1.InviteServerContext;
 exports.Session = Session_1.Session;
-var Subscription_1 = __webpack_require__(93);
+var Subscription_1 = __webpack_require__(92);
 exports.Subscription = Subscription_1.Subscription;
+var Transport_1 = __webpack_require__(93);
+exports.Transport = Transport_1.Transport;
 var transactions_1 = __webpack_require__(28);
 var Transactions = {
     InviteClientTransaction: transactions_1.InviteClientTransaction,
@@ -188,9 +189,9 @@ exports.Transactions = Transactions;
 var UA_1 = __webpack_require__(94);
 exports.makeUserAgentCoreConfigurationFromUA = UA_1.makeUserAgentCoreConfigurationFromUA;
 exports.UA = UA_1.UA;
-var Utils_1 = __webpack_require__(84);
+var Utils_1 = __webpack_require__(83);
 exports.Utils = Utils_1.Utils;
-var Web = tslib_1.__importStar(__webpack_require__(110));
+var Web = tslib_1.__importStar(__webpack_require__(111));
 exports.Web = Web;
 var version = Constants_1.C.version;
 exports.version = version;
@@ -448,7 +449,6 @@ tslib_1.__exportStar(__webpack_require__(65), exports);
 tslib_1.__exportStar(__webpack_require__(67), exports);
 // Files
 tslib_1.__exportStar(__webpack_require__(27), exports);
-tslib_1.__exportStar(__webpack_require__(79), exports);
 
 
 /***/ }),
@@ -3658,15 +3658,14 @@ var OutgoingRequestMessage = /** @class */ (function () {
      * the client and the server.
      * https://tools.ietf.org/html/rfc3261#section-8.1.1.7
      * @param branchParameter - The branch parameter.
-     * @param scheme - The scheme.
+     * @param transport - The sent protocol transport.
      */
-    OutgoingRequestMessage.prototype.setViaHeader = function (branch, scheme) {
-        if (scheme === void 0) { scheme = "WSS"; }
+    OutgoingRequestMessage.prototype.setViaHeader = function (branch, transport) {
         // FIXME: Hack
         if (this.options.hackViaTcp) {
-            scheme = "TCP";
+            transport = "TCP";
         }
-        var via = "SIP/2.0/" + scheme;
+        var via = "SIP/2.0/" + transport;
         via += " " + this.options.viaHost + ";branch=" + branch;
         if (this.options.forceRport) {
             via += ";rport";
@@ -6250,9 +6249,7 @@ var ClientTransaction = /** @class */ (function (_super) {
         // used to reach the next hop has been selected (which may involve the
         // usage of the procedures in [4]).
         // https://tools.ietf.org/html/rfc3261#section-8.1.1.7
-        // FIXME: Transport's server property is not typed (as of writing this).
-        var scheme = transport.server && transport.server.scheme ? transport.server.scheme : undefined;
-        _request.setViaHeader(_this.id, scheme);
+        _request.setViaHeader(_this.id, transport.protocol);
         return _this;
     }
     ClientTransaction.makeId = function (request) {
@@ -7075,9 +7072,7 @@ var InviteClientTransaction = /** @class */ (function (_super) {
             throw new Error("To tag undefined.");
         }
         var id = "z9hG4bK" + Math.floor(Math.random() * 10000000);
-        // FIXME: Transport's server property is not typed (as of writing this).
-        var scheme = this.transport.server && this.transport.server.scheme ? this.transport.server.scheme : undefined;
-        ack.setViaHeader(id, scheme);
+        ack.setViaHeader(id, this.transport.protocol);
         this.ackRetransmissionCache.set(toTag, ack); // Add to ACK retransmission cache
         this.send(ack.toString()).catch(function (error) {
             _this.logTransportError(error, "Failed to send ACK to 2xx response.");
@@ -12309,123 +12304,10 @@ exports.SubscribeUserAgentServer = SubscribeUserAgentServer;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-/**
- * Transport.
- * @remarks
- * Abstract transport layer base class.
- * @public
- */
-var Transport = /** @class */ (function (_super) {
-    tslib_1.__extends(Transport, _super);
-    /**
-     * Constructor
-     * @param logger - Logger.
-     * @param options - Options bucket. Deprecated.
-     */
-    function Transport(logger, options) {
-        var _this = _super.call(this) || this;
-        _this.logger = logger;
-        return _this;
-    }
-    /**
-     * Returns the promise designated by the child layer then emits a connected event.
-     * Automatically emits an event upon resolution, unless overrideEvent is set. If you
-     * override the event in this fashion, you should emit it in your implementation of connectPromise
-     * @param options - Options bucket.
-     */
-    Transport.prototype.connect = function (options) {
-        var _this = this;
-        if (options === void 0) { options = {}; }
-        return this.connectPromise(options).then(function (data) {
-            if (!data.overrideEvent) {
-                _this.emit("connected");
-            }
-        });
-    };
-    /**
-     * Sends a message then emits a 'messageSent' event. Automatically emits an
-     * event upon resolution, unless data.overrideEvent is set. If you override
-     * the event in this fashion, you should emit it in your implementation of sendPromise
-     * Rejects with an Error if message fails to send.
-     * @param message - Message.
-     * @param options - Options bucket.
-     */
-    Transport.prototype.send = function (message, options) {
-        var _this = this;
-        if (options === void 0) { options = {}; }
-        // Error handling is independent of whether the message was a request or
-        // response.
-        //
-        // If the transport user asks for a message to be sent over an
-        // unreliable transport, and the result is an ICMP error, the behavior
-        // depends on the type of ICMP error.  Host, network, port or protocol
-        // unreachable errors, or parameter problem errors SHOULD cause the
-        // transport layer to inform the transport user of a failure in sending.
-        // Source quench and TTL exceeded ICMP errors SHOULD be ignored.
-        //
-        // If the transport user asks for a request to be sent over a reliable
-        // transport, and the result is a connection failure, the transport
-        // layer SHOULD inform the transport user of a failure in sending.
-        // https://tools.ietf.org/html/rfc3261#section-18.4
-        return this.sendPromise(message).then(function (result) {
-            if (!result.overrideEvent) {
-                _this.emit("messageSent", result.msg);
-            }
-        });
-    };
-    /**
-     * Returns the promise designated by the child layer then emits a
-     * disconnected event. Automatically emits an event upon resolution,
-     * unless overrideEvent is set. If you override the event in this fashion,
-     * you should emit it in your implementation of disconnectPromise
-     * @param options - Options bucket
-     */
-    Transport.prototype.disconnect = function (options) {
-        var _this = this;
-        if (options === void 0) { options = {}; }
-        return this.disconnectPromise(options).then(function (data) {
-            if (!data.overrideEvent) {
-                _this.emit("disconnected");
-            }
-        });
-    };
-    Transport.prototype.afterConnected = function (callback) {
-        if (this.isConnected()) {
-            callback();
-        }
-        else {
-            this.once("connected", callback);
-        }
-    };
-    /**
-     * Returns a promise which resolves once the UA is connected. DEPRECATION WARNING: just use afterConnected()
-     */
-    Transport.prototype.waitForConnected = function () {
-        var _this = this;
-        // tslint:disable-next-line:no-console
-        console.warn("DEPRECATION WARNING Transport.waitForConnected(): use afterConnected() instead");
-        return new Promise(function (resolve) {
-            _this.afterConnected(resolve);
-        });
-    };
-    return Transport;
-}(events_1.EventEmitter));
-exports.Transport = Transport;
-
-
-/***/ }),
-/* 80 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-var events_1 = __webpack_require__(31);
-var Constants_1 = __webpack_require__(81);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Utils_1 = __webpack_require__(83);
 var ClientContext = /** @class */ (function (_super) {
     tslib_1.__extends(ClientContext, _super);
     function ClientContext(ua, method, target, options) {
@@ -12544,13 +12426,13 @@ exports.ClientContext = ClientContext;
 
 
 /***/ }),
-/* 81 */
+/* 80 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var version_1 = __webpack_require__(82);
+var version_1 = __webpack_require__(81);
 var C;
 (function (C) {
     C.version = version_1.LIBRARY_VERSION;
@@ -12743,17 +12625,17 @@ var C;
 
 
 /***/ }),
-/* 82 */
+/* 81 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LIBRARY_VERSION = "0.15.7";
+exports.LIBRARY_VERSION = "0.15.8";
 
 
 /***/ }),
-/* 83 */
+/* 82 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -12831,13 +12713,13 @@ var UAStatus;
 
 
 /***/ }),
-/* 84 */
+/* 83 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var Constants_1 = __webpack_require__(81);
+var Constants_1 = __webpack_require__(80);
 var grammar_1 = __webpack_require__(11);
 var uri_1 = __webpack_require__(15);
 var Utils;
@@ -13076,7 +12958,7 @@ var Utils;
 
 
 /***/ }),
-/* 85 */
+/* 84 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -13084,7 +12966,7 @@ var Utils;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(82);
 // tslint:disable:max-classes-per-file
 var Exceptions;
 (function (Exceptions) {
@@ -13220,19 +13102,19 @@ var LegacyException = /** @class */ (function (_super) {
 
 
 /***/ }),
-/* 86 */
+/* 85 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(80);
-var Constants_1 = __webpack_require__(81);
+var ClientContext_1 = __webpack_require__(79);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var Utils_1 = __webpack_require__(83);
 /**
  * SIP Publish (SIP Extension for Event State Publication RFC3903)
  * @class Class creating a SIP PublishContext.
@@ -13499,19 +13381,19 @@ exports.PublishContext = PublishContext;
 
 
 /***/ }),
-/* 87 */
+/* 86 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(80);
-var Constants_1 = __webpack_require__(81);
+var ClientContext_1 = __webpack_require__(79);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var ServerContext_1 = __webpack_require__(88);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var ServerContext_1 = __webpack_require__(87);
 // tslint:disable-next-line:max-classes-per-file
 var ReferClientContext = /** @class */ (function (_super) {
     tslib_1.__extends(ReferClientContext, _super);
@@ -13850,7 +13732,7 @@ exports.ReferServerContext = ReferServerContext;
 
 
 /***/ }),
-/* 88 */
+/* 87 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -13858,10 +13740,10 @@ exports.ReferServerContext = ReferServerContext;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-var Constants_1 = __webpack_require__(81);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Utils_1 = __webpack_require__(83);
 var ServerContext = /** @class */ (function (_super) {
     tslib_1.__extends(ServerContext, _super);
     function ServerContext(ua, incomingRequest) {
@@ -13976,19 +13858,19 @@ exports.ServerContext = ServerContext;
 
 
 /***/ }),
-/* 89 */
+/* 88 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
-var ClientContext_1 = __webpack_require__(80);
-var Constants_1 = __webpack_require__(81);
+var ClientContext_1 = __webpack_require__(79);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var Utils_1 = __webpack_require__(83);
 /**
  * Configuration load.
  * @private
@@ -14394,7 +14276,7 @@ exports.RegisterContext = RegisterContext;
 
 
 /***/ }),
-/* 90 */
+/* 89 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -14402,16 +14284,16 @@ exports.RegisterContext = RegisterContext;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-var ClientContext_1 = __webpack_require__(80);
-var Constants_1 = __webpack_require__(81);
+var ClientContext_1 = __webpack_require__(79);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var ReferContext_1 = __webpack_require__(87);
-var ServerContext_1 = __webpack_require__(88);
-var DTMF_1 = __webpack_require__(91);
-var DTMFValidator_1 = __webpack_require__(92);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var ReferContext_1 = __webpack_require__(86);
+var ServerContext_1 = __webpack_require__(87);
+var DTMF_1 = __webpack_require__(90);
+var DTMFValidator_1 = __webpack_require__(91);
+var Utils_1 = __webpack_require__(83);
 /*
  * @param {function returning SIP.sessionDescriptionHandler} [sessionDescriptionHandlerFactory]
  *        (See the documentation for the sessionDescriptionHandlerFactory argument of the UA constructor.)
@@ -16592,7 +16474,7 @@ exports.InviteClientContext = InviteClientContext;
 
 
 /***/ }),
-/* 91 */
+/* 90 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16600,11 +16482,11 @@ exports.InviteClientContext = InviteClientContext;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-var Constants_1 = __webpack_require__(81);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var Utils_1 = __webpack_require__(84);
-var DTMFValidator_1 = __webpack_require__(92);
+var Constants_1 = __webpack_require__(80);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var Utils_1 = __webpack_require__(83);
+var DTMFValidator_1 = __webpack_require__(91);
 /**
  * @class DTMF
  * @param {SIP.Session} session
@@ -16739,7 +16621,7 @@ exports.DTMF = DTMF;
 
 
 /***/ }),
-/* 92 */
+/* 91 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16777,7 +16659,7 @@ exports.DTMFValidator = DTMFValidator;
 
 
 /***/ }),
-/* 93 */
+/* 92 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -16785,11 +16667,11 @@ exports.DTMFValidator = DTMFValidator;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-var Constants_1 = __webpack_require__(81);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
 var allowed_methods_1 = __webpack_require__(59);
-var Enums_1 = __webpack_require__(83);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Utils_1 = __webpack_require__(83);
 /**
  * While this class is named `Subscription`, it is closer to
  * an implementation of a "subscriber" as defined in RFC 6665
@@ -17217,6 +17099,133 @@ var SubscribeClientContext = /** @class */ (function () {
 
 
 /***/ }),
+/* 93 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var events_1 = __webpack_require__(31);
+/**
+ * Legacy Transport.
+ * @remarks
+ * Abstract transport layer base class.
+ * @public
+ */
+var Transport = /** @class */ (function (_super) {
+    tslib_1.__extends(Transport, _super);
+    /**
+     * Constructor
+     * @param logger - Logger.
+     * @param options - Options bucket. Deprecated.
+     */
+    function Transport(logger, options) {
+        var _this = _super.call(this) || this;
+        _this.logger = logger;
+        return _this;
+    }
+    Object.defineProperty(Transport.prototype, "protocol", {
+        /**
+         * The protocol.
+         *
+         * @remarks
+         * Formatted as defined for the Via header sent-protocol transport.
+         * https://tools.ietf.org/html/rfc3261#section-20.42
+         */
+        get: function () {
+            return this.server && this.server.scheme ? this.server.scheme : "WSS";
+        },
+        enumerable: true,
+        configurable: true
+    });
+    /**
+     * Returns the promise designated by the child layer then emits a connected event.
+     * Automatically emits an event upon resolution, unless overrideEvent is set. If you
+     * override the event in this fashion, you should emit it in your implementation of connectPromise
+     * @param options - Options bucket.
+     */
+    Transport.prototype.connect = function (options) {
+        var _this = this;
+        if (options === void 0) { options = {}; }
+        return this.connectPromise(options).then(function (data) {
+            if (!data.overrideEvent) {
+                _this.emit("connected");
+            }
+        });
+    };
+    /**
+     * Sends a message then emits a 'messageSent' event. Automatically emits an
+     * event upon resolution, unless data.overrideEvent is set. If you override
+     * the event in this fashion, you should emit it in your implementation of sendPromise
+     * Rejects with an Error if message fails to send.
+     * @param message - Message.
+     * @param options - Options bucket.
+     */
+    Transport.prototype.send = function (message, options) {
+        var _this = this;
+        if (options === void 0) { options = {}; }
+        // Error handling is independent of whether the message was a request or
+        // response.
+        //
+        // If the transport user asks for a message to be sent over an
+        // unreliable transport, and the result is an ICMP error, the behavior
+        // depends on the type of ICMP error.  Host, network, port or protocol
+        // unreachable errors, or parameter problem errors SHOULD cause the
+        // transport layer to inform the transport user of a failure in sending.
+        // Source quench and TTL exceeded ICMP errors SHOULD be ignored.
+        //
+        // If the transport user asks for a request to be sent over a reliable
+        // transport, and the result is a connection failure, the transport
+        // layer SHOULD inform the transport user of a failure in sending.
+        // https://tools.ietf.org/html/rfc3261#section-18.4
+        return this.sendPromise(message).then(function (result) {
+            if (!result.overrideEvent) {
+                _this.emit("messageSent", result.msg);
+            }
+        });
+    };
+    /**
+     * Returns the promise designated by the child layer then emits a
+     * disconnected event. Automatically emits an event upon resolution,
+     * unless overrideEvent is set. If you override the event in this fashion,
+     * you should emit it in your implementation of disconnectPromise
+     * @param options - Options bucket
+     */
+    Transport.prototype.disconnect = function (options) {
+        var _this = this;
+        if (options === void 0) { options = {}; }
+        return this.disconnectPromise(options).then(function (data) {
+            if (!data.overrideEvent) {
+                _this.emit("disconnected");
+            }
+        });
+    };
+    Transport.prototype.afterConnected = function (callback) {
+        if (this.isConnected()) {
+            callback();
+        }
+        else {
+            this.once("connected", callback);
+        }
+    };
+    /**
+     * Returns a promise which resolves once the UA is connected. DEPRECATION WARNING: just use afterConnected()
+     */
+    Transport.prototype.waitForConnected = function () {
+        var _this = this;
+        // tslint:disable-next-line:no-console
+        console.warn("DEPRECATION WARNING Transport.waitForConnected(): use afterConnected() instead");
+        return new Promise(function (resolve) {
+            _this.afterConnected(resolve);
+        });
+    };
+    return Transport;
+}(events_1.EventEmitter));
+exports.Transport = Transport;
+
+
+/***/ }),
 /* 94 */
 /***/ (function(module, exports, __webpack_require__) {
 
@@ -17225,20 +17234,20 @@ var SubscribeClientContext = /** @class */ (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
-var ClientContext_1 = __webpack_require__(80);
-var Constants_1 = __webpack_require__(81);
+var ClientContext_1 = __webpack_require__(79);
+var Constants_1 = __webpack_require__(80);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var PublishContext_1 = __webpack_require__(86);
-var ReferContext_1 = __webpack_require__(87);
-var RegisterContext_1 = __webpack_require__(89);
-var ServerContext_1 = __webpack_require__(88);
-var Session_1 = __webpack_require__(90);
-var Subscription_1 = __webpack_require__(93);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var PublishContext_1 = __webpack_require__(85);
+var ReferContext_1 = __webpack_require__(86);
+var RegisterContext_1 = __webpack_require__(88);
+var ServerContext_1 = __webpack_require__(87);
+var Session_1 = __webpack_require__(89);
+var Subscription_1 = __webpack_require__(92);
+var Utils_1 = __webpack_require__(83);
 var SessionDescriptionHandler_1 = __webpack_require__(95);
-var Transport_1 = __webpack_require__(109);
+var Transport_1 = __webpack_require__(110);
 /**
  * @class Class creating a SIP User Agent.
  * @param {function returning SIP.sessionDescriptionHandler} [configuration.sessionDescriptionHandlerFactory]
@@ -18339,11 +18348,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
 var session_1 = __webpack_require__(96);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var Utils_1 = __webpack_require__(84);
-var Modifiers = tslib_1.__importStar(__webpack_require__(107));
-var SessionDescriptionHandlerObserver_1 = __webpack_require__(108);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var Utils_1 = __webpack_require__(83);
+var Modifiers = tslib_1.__importStar(__webpack_require__(108));
+var SessionDescriptionHandlerObserver_1 = __webpack_require__(109);
 /* SessionDescriptionHandler
  * @class PeerConnection helper Class.
  * @param {SIP.Session} session
@@ -18962,39 +18971,23 @@ exports.SessionDescriptionHandler = SessionDescriptionHandler;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
 var core_1 = __webpack_require__(2);
 var utils_1 = __webpack_require__(16);
 var allowed_methods_1 = __webpack_require__(59);
 var emitter_1 = __webpack_require__(97);
 var exceptions_1 = __webpack_require__(98);
-var info_1 = __webpack_require__(103);
-var notification_1 = __webpack_require__(104);
-var referral_1 = __webpack_require__(105);
-var session_state_1 = __webpack_require__(106);
-/**
- * Deprecated
- * @internal
- */
-var _SessionStatus;
-(function (_SessionStatus) {
-    // Session states
-    _SessionStatus[_SessionStatus["STATUS_NULL"] = 0] = "STATUS_NULL";
-    _SessionStatus[_SessionStatus["STATUS_INVITE_SENT"] = 1] = "STATUS_INVITE_SENT";
-    _SessionStatus[_SessionStatus["STATUS_1XX_RECEIVED"] = 2] = "STATUS_1XX_RECEIVED";
-    _SessionStatus[_SessionStatus["STATUS_INVITE_RECEIVED"] = 3] = "STATUS_INVITE_RECEIVED";
-    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_ANSWER"] = 4] = "STATUS_WAITING_FOR_ANSWER";
-    _SessionStatus[_SessionStatus["STATUS_ANSWERED"] = 5] = "STATUS_ANSWERED";
-    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_PRACK"] = 6] = "STATUS_WAITING_FOR_PRACK";
-    _SessionStatus[_SessionStatus["STATUS_WAITING_FOR_ACK"] = 7] = "STATUS_WAITING_FOR_ACK";
-    _SessionStatus[_SessionStatus["STATUS_CANCELED"] = 8] = "STATUS_CANCELED";
-    _SessionStatus[_SessionStatus["STATUS_TERMINATED"] = 9] = "STATUS_TERMINATED";
-    _SessionStatus[_SessionStatus["STATUS_ANSWERED_WAITING_FOR_PRACK"] = 10] = "STATUS_ANSWERED_WAITING_FOR_PRACK";
-    _SessionStatus[_SessionStatus["STATUS_EARLY_MEDIA"] = 11] = "STATUS_EARLY_MEDIA";
-    _SessionStatus[_SessionStatus["STATUS_CONFIRMED"] = 12] = "STATUS_CONFIRMED";
-})(_SessionStatus = exports._SessionStatus || (exports._SessionStatus = {}));
+var info_1 = __webpack_require__(104);
+var notification_1 = __webpack_require__(105);
+var referral_1 = __webpack_require__(106);
+var session_state_1 = __webpack_require__(107);
 /**
  * A session provides real time communication between one or more participants.
+ *
+ * @remarks
+ * The transport behaves in a deterministic manner according to the
+ * the state defined in {@link SessionState}.
  * @public
  */
 var Session = /** @class */ (function () {
@@ -19005,26 +18998,69 @@ var Session = /** @class */ (function () {
      */
     function Session(userAgent, options) {
         if (options === void 0) { options = {}; }
-        /** @internal */
-        this.localHold = false;
-        /** True if an error caused session termination. */
-        /** @internal */
-        this.isFailed = false;
-        /** @internal */
-        this.rel100 = "none";
-        /** @internal */
-        this.status = _SessionStatus.STATUS_NULL;
-        /** @internal */
-        this.expiresTimer = undefined;
-        /** @internal */
-        this.userNoAnswerTimer = undefined;
-        this._state = session_state_1.SessionState.Initial;
-        this._stateEventEmitter = new events_1.EventEmitter();
+        /** True if there is a re-INVITE request outstanding. */
         this.pendingReinvite = false;
+        /** Session state. */
+        this._state = session_state_1.SessionState.Initial;
+        /** Session state emitter. */
+        this._stateEventEmitter = new events_1.EventEmitter();
         this.userAgent = userAgent;
         this.delegate = options.delegate;
-        this.logger = userAgent.getLogger("sip.session");
     }
+    /**
+     * Destructor.
+     */
+    Session.prototype.dispose = function () {
+        return tslib_1.__awaiter(this, void 0, void 0, function () {
+            var _this = this;
+            return tslib_1.__generator(this, function (_a) {
+                this.logger.log("Session " + this.id + " in state " + this._state + " is being disposed");
+                // Remove from the user agent's session collection
+                if (!this.id) {
+                    throw new Error("Session id undefined.");
+                }
+                delete this.userAgent.sessions[this.id];
+                // Dispose of dialog media
+                if (this._sessionDescriptionHandler) {
+                    this._sessionDescriptionHandler.close();
+                    // TODO: The SDH needs to remain defined as it will be called after it is closed in cases
+                    // where an answer/offer arrives while the session is being torn down. There are a variety
+                    // of circumstances where this can happen - sending a BYE during a re-INVITE for example.
+                    // The code is currently written such that it lazily makes a new SDH when it needs one
+                    // and one is not yet defined. Thus if we undefined it here, it will currently make a
+                    // new one which is out of sysnc and then never gets cleaned up.
+                    //
+                    // The downside of leaving it defined are that calls this closed SDH will continue to be
+                    // made (think setDescription) and those shoud/will fail. These failures are handled, but
+                    // it would be nice to have it all coded up in a way where having an undefined SDH where
+                    // one is expected throws an error.
+                    //
+                    // this._sessionDescriptionHandler = undefined;
+                }
+                switch (this.state) {
+                    case session_state_1.SessionState.Initial:
+                        break; // the Inviter/Invitation sub class dispose method handles this case
+                    case session_state_1.SessionState.Establishing:
+                        break; // the Inviter/Invitation sub class dispose method handles this case
+                    case session_state_1.SessionState.Established:
+                        return [2 /*return*/, new Promise(function (resolve, reject) {
+                                _this._bye({
+                                    onAccept: function () { return resolve(); },
+                                    onRedirect: function () { return resolve(); },
+                                    onReject: function () { return resolve(); }
+                                });
+                            })];
+                    case session_state_1.SessionState.Terminating:
+                        return [2 /*return*/, Promise.resolve()]; // nothing to be done
+                    case session_state_1.SessionState.Terminated:
+                        return [2 /*return*/, Promise.resolve()]; // nothing to be done
+                    default:
+                        throw new Error("Unknown state.");
+                }
+                return [2 /*return*/];
+            });
+        });
+    };
     Object.defineProperty(Session.prototype, "sessionDescriptionHandler", {
         /**
          * Session description handler.
@@ -19085,10 +19121,7 @@ var Session = /** @class */ (function () {
             return Promise.reject(new Error("Invalid session state " + this.state));
         }
         if (this.pendingReinvite) {
-            return Promise.reject(new Error("Reinvite in progress. Please wait until complete, then try again."));
-        }
-        if (!this._sessionDescriptionHandler) {
-            throw new Error("Session description handler undefined.");
+            return Promise.reject(new exceptions_1.RequestPendingError("Reinvite in progress. Please wait until complete, then try again."));
         }
         this.pendingReinvite = true;
         var delegate = {
@@ -19108,7 +19141,6 @@ var Session = /** @class */ (function () {
                     _this.logger.error("Received 2xx response to re-INVITE without a session description");
                     _this.ackAndBye(response, 400, "Missing session description");
                     _this.stateTransition(session_state_1.SessionState.Terminated);
-                    _this.isFailed = true;
                     _this.pendingReinvite = false;
                     return;
                 }
@@ -19136,7 +19168,6 @@ var Session = /** @class */ (function () {
                         else {
                             _this.ackAndBye(response, 488, "Bad Media Description");
                             _this.stateTransition(session_state_1.SessionState.Terminated);
-                            _this.isFailed = true;
                         }
                     })
                         .then(function () {
@@ -19168,7 +19199,6 @@ var Session = /** @class */ (function () {
                         if (_this.state !== session_state_1.SessionState.Terminated) {
                             _this.ackAndBye(response, 488, "Bad Media Description");
                             _this.stateTransition(session_state_1.SessionState.Terminated);
-                            _this.isFailed = true;
                         }
                         else {
                             response.ack();
@@ -19213,7 +19243,6 @@ var Session = /** @class */ (function () {
                             extraHeaders.push("Reason: " + _this.getReasonHeaderValue(500, "Internal Server Error"));
                             _this.dialog.bye(undefined, { extraHeaders: extraHeaders });
                             _this.stateTransition(session_state_1.SessionState.Terminated);
-                            _this.isFailed = true;
                         }
                     })
                         .then(function () {
@@ -19235,7 +19264,7 @@ var Session = /** @class */ (function () {
         if (options.withoutSdp) {
             if (!this.dialog) {
                 this.pendingReinvite = false;
-                return Promise.reject(new Error("Dialog undefined."));
+                throw new Error("Dialog undefined.");
             }
             return Promise.resolve(this.dialog.invite(delegate, requestOptions));
         }
@@ -19317,34 +19346,6 @@ var Session = /** @class */ (function () {
         }
     };
     /**
-     * Called to cleanup session after terminated.
-     * @internal
-     */
-    Session.prototype._close = function () {
-        this.logger.log("Session[" + this.id + "]._close");
-        if (this.status === _SessionStatus.STATUS_TERMINATED) {
-            return;
-        }
-        // 1st Step. Terminate media.
-        if (this._sessionDescriptionHandler) {
-            this._sessionDescriptionHandler.close();
-        }
-        // 2nd Step. Terminate signaling.
-        // Clear session timers
-        if (this.expiresTimer) {
-            clearTimeout(this.expiresTimer);
-        }
-        if (this.userNoAnswerTimer) {
-            clearTimeout(this.userNoAnswerTimer);
-        }
-        this.status = _SessionStatus.STATUS_TERMINATED;
-        if (!this.id) {
-            throw new Error("Session id undefined.");
-        }
-        delete this.userAgent.sessions[this.id];
-        return;
-    };
-    /**
      * Send INFO.
      * @param delegate - Request delegate.
      * @param options - Request options bucket.
@@ -19414,7 +19415,6 @@ var Session = /** @class */ (function () {
                 // State should never be reached as first reliable response must have answer/offer.
                 // So we must have never has sent an offer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
-                this.isFailed = true;
                 var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
@@ -19426,17 +19426,14 @@ var Session = /** @class */ (function () {
                 var body = core_1.getBody(request.message);
                 // If the ACK doesn't have an answer, nothing to be done.
                 if (!body) {
-                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 if (body.contentDisposition === "render") {
                     this.renderbody = body.content;
                     this.rendertype = body.contentType;
-                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 if (body.contentDisposition !== "session") {
-                    this.status = _SessionStatus.STATUS_CONFIRMED;
                     return;
                 }
                 // Receved answer in ACK.
@@ -19445,10 +19442,8 @@ var Session = /** @class */ (function () {
                     sessionDescriptionHandlerModifiers: this.sessionDescriptionHandlerModifiers
                 };
                 this.setAnswer(body, options)
-                    .then(function () { _this.status = _SessionStatus.STATUS_CONFIRMED; })
                     .catch(function (error) {
                     _this.logger.error(error.message);
-                    _this.isFailed = true;
                     var extraHeaders = ["Reason: " + _this.getReasonHeaderValue(488, "Bad Media Description")];
                     dialog.bye(undefined, { extraHeaders: extraHeaders });
                     _this.stateTransition(session_state_1.SessionState.Terminated);
@@ -19459,7 +19454,6 @@ var Session = /** @class */ (function () {
                 // State should never be reached as local offer would be answered by this ACK.
                 // So we must have received an ACK without an answer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
-                this.isFailed = true;
                 var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
@@ -19469,7 +19463,6 @@ var Session = /** @class */ (function () {
                 // State should never be reached as remote offer would be answered in first reliable response.
                 // So we must have never has sent an answer.
                 this.logger.error("Invalid signaling state " + dialog.signalingState + ".");
-                this.isFailed = true;
                 var extraHeaders = ["Reason: " + this.getReasonHeaderValue(488, "Bad Media Description")];
                 dialog.bye(undefined, { extraHeaders: extraHeaders });
                 this.stateTransition(session_state_1.SessionState.Terminated);
@@ -19586,7 +19579,6 @@ var Session = /** @class */ (function () {
                     extraHeadersBye.push("Reason: " + _this.getReasonHeaderValue(500, "Internal Server Error"));
                     _this.dialog.bye(undefined, { extraHeaders: extraHeaders });
                     _this.stateTransition(session_state_1.SessionState.Terminated);
-                    _this.isFailed = true;
                 }
                 if (_this.delegate && _this.delegate.onInvite) {
                     _this.delegate.onInvite(request.message, outgoingResponse.message, 488);
@@ -19643,29 +19635,29 @@ var Session = /** @class */ (function () {
             this.logger.error("REFER received while in state " + this.state + ", dropping request");
             return;
         }
-        if (this.status === _SessionStatus.STATUS_CONFIRMED) {
-            // RFC 3515 2.4.1
-            if (!request.message.hasHeader("refer-to")) {
-                this.logger.warn("Invalid REFER packet. A refer-to header is required. Rejecting.");
-                request.reject();
-                return;
-            }
-            var referral_2 = new referral_1.Referral(request, this);
-            if (this.delegate && this.delegate.onRefer) {
-                this.delegate.onRefer(referral_2);
-            }
-            else {
-                this.logger.log("No delegate available to handle REFER, automatically accepting and following.");
-                referral_2
-                    .accept()
-                    .then(function () { return referral_2
-                    .makeInviter(_this.passedOptions)
-                    .invite(); })
-                    .catch(function (error) {
-                    // FIXME: logging and eating error...
-                    _this.logger.error(error.message);
-                });
-            }
+        // REFER is a SIP request and is constructed as defined in [1].  A REFER
+        // request MUST contain exactly one Refer-To header field value.
+        // https://tools.ietf.org/html/rfc3515#section-2.4.1
+        if (!request.message.hasHeader("refer-to")) {
+            this.logger.warn("Invalid REFER packet. A refer-to header is required. Rejecting.");
+            request.reject();
+            return;
+        }
+        var referral = new referral_1.Referral(request, this);
+        if (this.delegate && this.delegate.onRefer) {
+            this.delegate.onRefer(referral);
+        }
+        else {
+            this.logger.log("No delegate available to handle REFER, automatically accepting and following.");
+            referral
+                .accept()
+                .then(function () { return referral
+                .makeInviter(_this.referralInviterOptions)
+                .invite(); })
+                .catch(function (error) {
+                // FIXME: logging and eating error...
+                _this.logger.error(error.message);
+            });
         }
     };
     /**
@@ -19926,17 +19918,14 @@ var Session = /** @class */ (function () {
             default:
                 throw new Error("Unrecognized state.");
         }
-        if (newState === session_state_1.SessionState.Established) {
-            this.startTime = new Date(); // Deprecated legacy ported behavior
-        }
-        if (newState === session_state_1.SessionState.Terminated) {
-            this.endTime = new Date(); // Deprecated legacy ported behavior
-            this._close();
-        }
         // Transition
         this._state = newState;
         this.logger.log("Session " + this.id + " transitioned to state " + this._state);
         this._stateEventEmitter.emit("event", this._state);
+        // Dispose
+        if (newState === session_state_1.SessionState.Terminated) {
+            this.dispose();
+        }
     };
     Session.prototype.getReasonHeaderValue = function (code, reason) {
         var cause = code;
@@ -19993,6 +19982,7 @@ tslib_1.__exportStar(__webpack_require__(99), exports);
 tslib_1.__exportStar(__webpack_require__(100), exports);
 tslib_1.__exportStar(__webpack_require__(101), exports);
 tslib_1.__exportStar(__webpack_require__(102), exports);
+tslib_1.__exportStar(__webpack_require__(103), exports);
 
 
 /***/ }),
@@ -20095,6 +20085,29 @@ exports.SessionTerminatedError = SessionTerminatedError;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
+var core_1 = __webpack_require__(2);
+/**
+ * An exception indicating an invalid state transition error occured.
+ * @public
+ */
+var StateTransitionError = /** @class */ (function (_super) {
+    tslib_1.__extends(StateTransitionError, _super);
+    function StateTransitionError(message) {
+        return _super.call(this, message ? message : "An error occurred during state transition.") || this;
+    }
+    return StateTransitionError;
+}(core_1.Exception));
+exports.StateTransitionError = StateTransitionError;
+
+
+/***/ }),
+/* 104 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * An exchange of information (incoming INFO).
  * @public
@@ -20128,7 +20141,7 @@ exports.Info = Info;
 
 
 /***/ }),
-/* 104 */
+/* 105 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20167,7 +20180,7 @@ exports.Notification = Notification;
 
 
 /***/ }),
-/* 105 */
+/* 106 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20270,7 +20283,7 @@ exports.Referral = Referral;
 
 
 /***/ }),
-/* 106 */
+/* 107 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20278,34 +20291,54 @@ exports.Referral = Referral;
 Object.defineProperty(exports, "__esModule", { value: true });
 /**
  * {@link Session} state.
+ *
  * @remarks
- * Valid state transitions:
- * ```
- * 1. "initial" --> "establishing" (before INVITE sent on outgoing, before OK sent on incoming)
- * 2. "initial" --> "established" (after ACK is sent on outgoing, after OK sent on incoming)
- * 4. "initial" --> "terminating"
- * 4. "initial" --> "terminated"
- * 5. "establishing" --> "established"
- * 6. "establishing" --> "terminating"
- * 7. "establishing" --> "terminated"
- * 8. "established" --> "terminating"
- * 9. "established" --> "terminated"
- * 10. "terminating" --> "terminated"
+ * The {@link Session} behaves in a deterministic manner according to the following
+ * Finite State Machine (FSM).
+ * ```txt
+ *                   ___________________________________________________________
+ *                  |  ____________________________________________             |
+ *                  | |            ____________________________    |            |
+ * Session          | |           |                            v   v            v
+ * Constructed -> Initial -> Establishing -> Established -> Terminating -> Terminated
+ *                                |               |___________________________^   ^
+ *                                |_______________________________________________|
  * ```
  * @public
  */
 var SessionState;
 (function (SessionState) {
+    /**
+     * If `Inviter`, INVITE not sent yet.
+     * If `Invitation`, received INVITE (but no final response sent yet).
+     */
     SessionState["Initial"] = "Initial";
+    /**
+     * If `Inviter`, sent INVITE and waiting for a final response.
+     * If `Invitation`, received INVITE and attempting to send 200 final response (but has not sent it yet).
+     */
     SessionState["Establishing"] = "Establishing";
+    /**
+     * If `Inviter`, sent INVITE and received 200 final response and sent ACK.
+     * If `Invitation`, received INVITE and sent 200 final response.
+     */
     SessionState["Established"] = "Established";
+    /**
+     * If `Inviter`, sent INVITE, sent CANCEL and now waiting for 487 final response to ACK (or 200 to ACK & BYE).
+     * If `Invitation`, received INVITE, sent 200 final response and now waiting on ACK and upon receipt will attempt BYE
+     * (as the protocol specification requires, before sending a BYE we must receive the ACK - so we are waiting).
+     */
     SessionState["Terminating"] = "Terminating";
+    /**
+     * If `Inviter`, sent INVITE and received non-200 final response (or sent/received BYE after receiving 200).
+     * If `Invitation`, received INVITE and sent non-200 final response (or sent/received BYE after sending 200).
+     */
     SessionState["Terminated"] = "Terminated";
 })(SessionState = exports.SessionState || (exports.SessionState = {}));
 
 
 /***/ }),
-/* 107 */
+/* 108 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20433,14 +20466,14 @@ exports.addMidLines = addMidLines;
 
 
 /***/ }),
-/* 108 */
+/* 109 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var session_1 = __webpack_require__(96);
-var Enums_1 = __webpack_require__(83);
+var Enums_1 = __webpack_require__(82);
 /* SessionDescriptionHandlerObserver
  * @class SessionDescriptionHandler Observer Class.
  * @param {SIP.Session} session
@@ -20470,7 +20503,7 @@ exports.SessionDescriptionHandlerObserver = SessionDescriptionHandlerObserver;
 
 
 /***/ }),
-/* 109 */
+/* 110 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20478,9 +20511,10 @@ exports.SessionDescriptionHandlerObserver = SessionDescriptionHandlerObserver;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
 var core_1 = __webpack_require__(2);
-var Enums_1 = __webpack_require__(83);
-var Exceptions_1 = __webpack_require__(85);
-var Utils_1 = __webpack_require__(84);
+var Enums_1 = __webpack_require__(82);
+var Exceptions_1 = __webpack_require__(84);
+var Transport_1 = __webpack_require__(93);
+var Utils_1 = __webpack_require__(83);
 var TransportStatus;
 (function (TransportStatus) {
     TransportStatus[TransportStatus["STATUS_CONNECTING"] = 0] = "STATUS_CONNECTING";
@@ -21194,26 +21228,8 @@ var Transport = /** @class */ (function (_super) {
     };
     Transport.C = TransportStatus;
     return Transport;
-}(core_1.Transport));
+}(Transport_1.Transport));
 exports.Transport = Transport;
-
-
-/***/ }),
-/* 110 */
-/***/ (function(module, exports, __webpack_require__) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
-var Modifiers = tslib_1.__importStar(__webpack_require__(107));
-exports.Modifiers = Modifiers;
-var Simple_1 = __webpack_require__(111);
-exports.Simple = Simple_1.Simple;
-var SessionDescriptionHandler_1 = __webpack_require__(95);
-exports.SessionDescriptionHandler = SessionDescriptionHandler_1.SessionDescriptionHandler;
-var Transport_1 = __webpack_require__(109);
-exports.Transport = Transport_1.Transport;
 
 
 /***/ }),
@@ -21224,9 +21240,27 @@ exports.Transport = Transport_1.Transport;
 
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = __webpack_require__(1);
+var Modifiers = tslib_1.__importStar(__webpack_require__(108));
+exports.Modifiers = Modifiers;
+var Simple_1 = __webpack_require__(112);
+exports.Simple = Simple_1.Simple;
+var SessionDescriptionHandler_1 = __webpack_require__(95);
+exports.SessionDescriptionHandler = SessionDescriptionHandler_1.SessionDescriptionHandler;
+var Transport_1 = __webpack_require__(110);
+exports.Transport = Transport_1.Transport;
+
+
+/***/ }),
+/* 112 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
 var UA_1 = __webpack_require__(94);
-var Modifiers = tslib_1.__importStar(__webpack_require__(107));
+var Modifiers = tslib_1.__importStar(__webpack_require__(108));
 /* Simple
  * @class Simple
  */
