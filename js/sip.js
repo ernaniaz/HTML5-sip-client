@@ -1,6 +1,6 @@
 /*!
  * 
- *  SIP version 0.15.8
+ *  SIP version 0.15.10
  *  Copyright (c) 2014-2019 Junction Networks, Inc <http://www.onsip.com>
  *  Homepage: https://sipjs.com
  *  License: https://sipjs.com/license/
@@ -12631,7 +12631,7 @@ var C;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LIBRARY_VERSION = "0.15.8";
+exports.LIBRARY_VERSION = "0.15.10";
 
 
 /***/ }),
@@ -18971,7 +18971,6 @@ exports.SessionDescriptionHandler = SessionDescriptionHandler;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = __webpack_require__(1);
 var events_1 = __webpack_require__(31);
 var core_1 = __webpack_require__(2);
 var utils_1 = __webpack_require__(16);
@@ -19004,63 +19003,96 @@ var Session = /** @class */ (function () {
         this._state = session_state_1.SessionState.Initial;
         /** Session state emitter. */
         this._stateEventEmitter = new events_1.EventEmitter();
-        this.userAgent = userAgent;
         this.delegate = options.delegate;
+        this._userAgent = userAgent;
     }
     /**
      * Destructor.
      */
     Session.prototype.dispose = function () {
-        return tslib_1.__awaiter(this, void 0, void 0, function () {
-            var _this = this;
-            return tslib_1.__generator(this, function (_a) {
-                this.logger.log("Session " + this.id + " in state " + this._state + " is being disposed");
-                // Remove from the user agent's session collection
-                if (!this.id) {
-                    throw new Error("Session id undefined.");
-                }
-                delete this.userAgent.sessions[this.id];
-                // Dispose of dialog media
-                if (this._sessionDescriptionHandler) {
-                    this._sessionDescriptionHandler.close();
-                    // TODO: The SDH needs to remain defined as it will be called after it is closed in cases
-                    // where an answer/offer arrives while the session is being torn down. There are a variety
-                    // of circumstances where this can happen - sending a BYE during a re-INVITE for example.
-                    // The code is currently written such that it lazily makes a new SDH when it needs one
-                    // and one is not yet defined. Thus if we undefined it here, it will currently make a
-                    // new one which is out of sysnc and then never gets cleaned up.
-                    //
-                    // The downside of leaving it defined are that calls this closed SDH will continue to be
-                    // made (think setDescription) and those shoud/will fail. These failures are handled, but
-                    // it would be nice to have it all coded up in a way where having an undefined SDH where
-                    // one is expected throws an error.
-                    //
-                    // this._sessionDescriptionHandler = undefined;
-                }
-                switch (this.state) {
-                    case session_state_1.SessionState.Initial:
-                        break; // the Inviter/Invitation sub class dispose method handles this case
-                    case session_state_1.SessionState.Establishing:
-                        break; // the Inviter/Invitation sub class dispose method handles this case
-                    case session_state_1.SessionState.Established:
-                        return [2 /*return*/, new Promise(function (resolve, reject) {
-                                _this._bye({
-                                    onAccept: function () { return resolve(); },
-                                    onRedirect: function () { return resolve(); },
-                                    onReject: function () { return resolve(); }
-                                });
-                            })];
-                    case session_state_1.SessionState.Terminating:
-                        return [2 /*return*/, Promise.resolve()]; // nothing to be done
-                    case session_state_1.SessionState.Terminated:
-                        return [2 /*return*/, Promise.resolve()]; // nothing to be done
-                    default:
-                        throw new Error("Unknown state.");
-                }
-                return [2 /*return*/];
-            });
-        });
+        var _this = this;
+        this.logger.log("Session " + this.id + " in state " + this._state + " is being disposed");
+        // Remove from the user agent's session collection
+        delete this.userAgent._sessions[this.id];
+        // Dispose of dialog media
+        if (this._sessionDescriptionHandler) {
+            this._sessionDescriptionHandler.close();
+            // TODO: The SDH needs to remain defined as it will be called after it is closed in cases
+            // where an answer/offer arrives while the session is being torn down. There are a variety
+            // of circumstances where this can happen - sending a BYE during a re-INVITE for example.
+            // The code is currently written such that it lazily makes a new SDH when it needs one
+            // and one is not yet defined. Thus if we undefined it here, it will currently make a
+            // new one which is out of sync and then never gets cleaned up.
+            //
+            // The downside of leaving it defined are that calls this closed SDH will continue to be
+            // made (think setDescription) and those should/will fail. These failures are handled, but
+            // it would be nice to have it all coded up in a way where having an undefined SDH where
+            // one is expected throws an error.
+            //
+            // this._sessionDescriptionHandler = undefined;
+        }
+        switch (this.state) {
+            case session_state_1.SessionState.Initial:
+                break; // the Inviter/Invitation sub class dispose method handles this case
+            case session_state_1.SessionState.Establishing:
+                break; // the Inviter/Invitation sub class dispose method handles this case
+            case session_state_1.SessionState.Established:
+                return new Promise(function (resolve, reject) {
+                    _this._bye({
+                        onAccept: function () { return resolve(); },
+                        onRedirect: function () { return resolve(); },
+                        onReject: function () { return resolve(); }
+                    });
+                });
+            case session_state_1.SessionState.Terminating:
+                break; // nothing to be done
+            case session_state_1.SessionState.Terminated:
+                break; // nothing to be done
+            default:
+                throw new Error("Unknown state.");
+        }
+        return Promise.resolve();
     };
+    Object.defineProperty(Session.prototype, "assertedIdentity", {
+        /**
+         * The asserted identity of the remote user.
+         */
+        get: function () {
+            return this._assertedIdentity;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Session.prototype, "dialog", {
+        /**
+         * The confirmed session dialog.
+         */
+        get: function () {
+            return this._dialog;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Session.prototype, "id", {
+        /**
+         * A unique identifier for this session.
+         */
+        get: function () {
+            return this._id;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Session.prototype, "replacee", {
+        /**
+         * The session being replace by this one.
+         */
+        get: function () {
+            return this._replacee;
+        },
+        enumerable: true,
+        configurable: true
+    });
     Object.defineProperty(Session.prototype, "sessionDescriptionHandler", {
         /**
          * Session description handler.
@@ -19104,7 +19136,17 @@ var Session = /** @class */ (function () {
          * Session state change emitter.
          */
         get: function () {
-            return emitter_1.makeEmitter(this._stateEventEmitter);
+            return emitter_1._makeEmitter(this._stateEventEmitter);
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Session.prototype, "userAgent", {
+        /**
+         * The user agent.
+         */
+        get: function () {
+            return this._userAgent;
         },
         enumerable: true,
         configurable: true
@@ -19161,7 +19203,7 @@ var Session = /** @class */ (function () {
                         _this.logger.error("Failed to handle offer in 2xx response to re-INVITE");
                         _this.logger.error(error.message);
                         if (_this.state === session_state_1.SessionState.Terminated) {
-                            // A BYE should not be sent if alreadly terminated.
+                            // A BYE should not be sent if already terminated.
                             // For example, a BYE may be sent/received while re-INVITE is outstanding.
                             response.ack();
                         }
@@ -19182,8 +19224,8 @@ var Session = /** @class */ (function () {
                     // FIXME: SDH options & SDH modifiers options are applied somewhat ambiguously
                     //        This behavior was ported from legacy code and the issue punted down the road.
                     var answerOptions = {
-                        sessionDescriptionHandlerOptions: _this.sessionDescriptionHandlerOptions,
-                        sessionDescriptionHandlerModifiers: _this.sessionDescriptionHandlerModifiers
+                        sessionDescriptionHandlerOptions: _this._sessionDescriptionHandlerOptions,
+                        sessionDescriptionHandlerModifiers: _this._sessionDescriptionHandlerModifiers
                     };
                     _this.setAnswer(body, answerOptions)
                         .then(function () {
@@ -19193,7 +19235,7 @@ var Session = /** @class */ (function () {
                         // No way to recover, so terminate session and mark as failed.
                         _this.logger.error("Failed to handle answer in 2xx response to re-INVITE");
                         _this.logger.error(error.message);
-                        // A BYE should only be sent if session is not alreadly terminated.
+                        // A BYE should only be sent if session is not already terminated.
                         // For example, a BYE may be sent/received while re-INVITE is outstanding.
                         // The ACK needs to be sent regardless as it was not handled by the transaction.
                         if (_this.state !== session_state_1.SessionState.Terminated) {
@@ -19232,7 +19274,7 @@ var Session = /** @class */ (function () {
                         // No way to recover, so terminate session and mark as failed.
                         _this.logger.error("Failed to rollback offer on non-2xx response to re-INVITE");
                         _this.logger.error(error.message);
-                        // A BYE should only be sent if session is not alreadly terminated.
+                        // A BYE should only be sent if session is not already terminated.
                         // For example, a BYE may be sent/received while re-INVITE is outstanding.
                         // Note that the ACK was already sent by the transaction, so just need to send BYE.
                         if (_this.state !== session_state_1.SessionState.Terminated) {
@@ -19259,7 +19301,7 @@ var Session = /** @class */ (function () {
         var requestOptions = options.requestOptions || {};
         requestOptions.extraHeaders = (requestOptions.extraHeaders || []).slice();
         requestOptions.extraHeaders.push("Allow: " + allowed_methods_1.AllowedMethods.toString());
-        requestOptions.extraHeaders.push("Contact: " + this.contact);
+        requestOptions.extraHeaders.push("Contact: " + this._contact);
         // Just send an INVITE with no sdp...
         if (options.withoutSdp) {
             if (!this.dialog) {
@@ -19290,6 +19332,22 @@ var Session = /** @class */ (function () {
             _this.pendingReinvite = false;
             throw error;
         });
+    };
+    /**
+     * Send REFER.
+     * @param referrer - Referrer.
+     * @param delegate - Request delegate.
+     * @param options - Request options bucket.
+     * @internal
+     */
+    Session.prototype.refer = function (referrer, delegate, options) {
+        // Using core session dialog
+        if (!this.dialog) {
+            return Promise.reject(new Error("Session dialog undefined."));
+        }
+        // If the session has a referrer, it will receive any in-dialog NOTIFY requests.
+        this._referrer = referrer;
+        return Promise.resolve(this.dialog.refer(delegate, options));
     };
     /**
      * Send BYE.
@@ -19359,22 +19417,6 @@ var Session = /** @class */ (function () {
         return Promise.resolve(this.dialog.info(delegate, options));
     };
     /**
-     * Send REFER.
-     * @param referrer - Referrer.
-     * @param delegate - Request delegate.
-     * @param options - Request options bucket.
-     * @internal
-     */
-    Session.prototype.refer = function (referrer, delegate, options) {
-        // Using core session dialog
-        if (!this.dialog) {
-            return Promise.reject(new Error("Session dialog undefined."));
-        }
-        // If the session has a referrer, it will receive any in-dialog NOTIFY requests.
-        this.referrer = referrer;
-        return Promise.resolve(this.dialog.refer(delegate, options));
-    };
-    /**
      * Send ACK and then BYE. There are unrecoverable errors which can occur
      * while handling dialog forming and in-dialog INVITE responses and when
      * they occur we ACK the response and send a BYE.
@@ -19429,17 +19471,17 @@ var Session = /** @class */ (function () {
                     return;
                 }
                 if (body.contentDisposition === "render") {
-                    this.renderbody = body.content;
-                    this.rendertype = body.contentType;
+                    this._renderbody = body.content;
+                    this._rendertype = body.contentType;
                     return;
                 }
                 if (body.contentDisposition !== "session") {
                     return;
                 }
-                // Receved answer in ACK.
+                // Received answer in ACK.
                 var options = {
-                    sessionDescriptionHandlerOptions: this.sessionDescriptionHandlerOptions,
-                    sessionDescriptionHandlerModifiers: this.sessionDescriptionHandlerModifiers
+                    sessionDescriptionHandlerOptions: this._sessionDescriptionHandlerOptions,
+                    sessionDescriptionHandlerModifiers: this._sessionDescriptionHandlerModifiers
                 };
                 this.setAnswer(body, options)
                     .catch(function (error) {
@@ -19518,20 +19560,20 @@ var Session = /** @class */ (function () {
         }
         // TODO: would be nice to have core track and set the Contact header,
         // but currently the session which is setting it is holding onto it.
-        var extraHeaders = ["Contact: " + this.contact];
+        var extraHeaders = ["Contact: " + this._contact];
         // Handle P-Asserted-Identity
         if (request.message.hasHeader("P-Asserted-Identity")) {
             var header = request.message.getHeader("P-Asserted-Identity");
             if (!header) {
                 throw new Error("Header undefined.");
             }
-            this.assertedIdentity = core_1.Grammar.nameAddrHeaderParse(header);
+            this._assertedIdentity = core_1.Grammar.nameAddrHeaderParse(header);
         }
         // FIXME: SDH options & SDH modifiers options are applied somewhat ambiguously
         //        This behavior was ported from legacy code and the issue punted down the road.
         var options = {
-            sessionDescriptionHandlerOptions: this.sessionDescriptionHandlerOptions,
-            sessionDescriptionHandlerModifiers: this.sessionDescriptionHandlerModifiers
+            sessionDescriptionHandlerOptions: this._sessionDescriptionHandlerOptions,
+            sessionDescriptionHandlerModifiers: this._sessionDescriptionHandlerModifiers
         };
         this.generateResponseOfferAnswerInDialog(options)
             .then(function (body) {
@@ -19568,7 +19610,7 @@ var Session = /** @class */ (function () {
                 _this.logger.error(errorRollback.message);
                 _this.logger.error("Failed to rollback offer on re-INVITE request");
                 var outgoingResponse = request.reject({ statusCode: 488 }); // Not Acceptable Here
-                // A BYE should only be sent if session is not alreadly terminated.
+                // A BYE should only be sent if session is not already terminated.
                 // For example, a BYE may be sent/received while re-INVITE is outstanding.
                 // Note that the ACK was already sent by the transaction, so just need to send BYE.
                 if (_this.state !== session_state_1.SessionState.Terminated) {
@@ -19598,9 +19640,9 @@ var Session = /** @class */ (function () {
         }
         // If this a NOTIFY associated with the progress of a REFER,
         // look to delegate handling to the associated Referrer.
-        if (this.referrer && this.referrer.delegate && this.referrer.delegate.onNotify) {
+        if (this._referrer && this._referrer.delegate && this._referrer.delegate.onNotify) {
             var notification = new notification_1.Notification(request);
-            this.referrer.delegate.onNotify(notification);
+            this._referrer.delegate.onNotify(notification);
             return;
         }
         // Otherwise accept the NOTIFY.
@@ -19652,7 +19694,7 @@ var Session = /** @class */ (function () {
             referral
                 .accept()
                 .then(function () { return referral
-                .makeInviter(_this.referralInviterOptions)
+                .makeInviter(_this._referralInviterOptions)
                 .invite(); })
                 .catch(function (error) {
                 // FIXME: logging and eating error...
@@ -19859,7 +19901,7 @@ var Session = /** @class */ (function () {
      */
     Session.prototype.setSessionDescriptionHandler = function (sdh) {
         if (this._sessionDescriptionHandler) {
-            throw new Error("Sessionn description handler defined.");
+            throw new Error("Session description handler defined.");
         }
         this._sessionDescriptionHandler = sdh;
     };
@@ -19953,9 +19995,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * @param eventName - Event name.
  * @internal
  */
-function makeEmitter(eventEmitter, eventName) {
+function _makeEmitter(eventEmitter, eventName) {
     if (eventName === void 0) { eventName = "event"; }
     return {
+        addListener: function (listener, options) {
+            if (options === void 0) { options = {}; }
+            if (options.once) {
+                eventEmitter.once(eventName, listener);
+            }
+            else {
+                eventEmitter.addListener(eventName, listener);
+            }
+        },
+        removeListener: function (listener) {
+            eventEmitter.removeListener(eventName, listener);
+        },
         on: function (listener) {
             eventEmitter.on(eventName, listener);
         },
@@ -19967,7 +20021,7 @@ function makeEmitter(eventEmitter, eventName) {
         }
     };
 }
-exports.makeEmitter = makeEmitter;
+exports._makeEmitter = _makeEmitter;
 
 
 /***/ }),
@@ -20272,9 +20326,9 @@ var Referral = /** @class */ (function () {
             extraHeaders.push("Referred-By: " + referredBy);
         }
         options.extraHeaders = extraHeaders;
-        this.inviter = this.session.userAgent.makeInviter(targetURI, options);
-        this.inviter.referred = this.session;
-        this.session.referral = this.inviter;
+        this.inviter = this.session.userAgent._makeInviter(targetURI, options);
+        this.inviter._referred = this.session;
+        this.session._referral = this.inviter;
         return this.inviter;
     };
     return Referral;
